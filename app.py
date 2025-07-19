@@ -223,25 +223,8 @@ HTML_TEMPLATE = '''
 def create_basic_project_structure(app_name, app_type, prompt):
     """Create basic MIT App Inventor project structure based on prompt"""
     
-    # Base project properties
+    # Base project properties with proper MIT App Inventor format
     project_properties = {
-        "name": app_name,
-        "assets": [],
-        "settings": {
-            "icon": "",
-            "versioncode": "1",
-            "versionname": "1.0",
-            "useslocation": "false",
-            "aname": app_name,
-            "sizing": "Responsive",
-            "showlistsasjson": "true",
-            "actionbar": "false",
-            "theme": "AppTheme.Light.DarkActionBar",
-            "color_primary": "#3F51B5",
-            "color_primary_dark": "#303F9F",
-            "color_accent": "#FF4081"
-        },
-        "authURL": [],
         "YaVersion": "208",
         "Source": "Form",
         "Properties": {
@@ -250,6 +233,23 @@ def create_basic_project_structure(app_name, app_type, prompt):
             "$Version": "31",
             "AppName": app_name,
             "Title": app_name,
+            "AboutScreen": "",
+            "AlignHorizontal": "1",
+            "AlignVertical": "1",
+            "BackgroundColor": "&HFFFFFFFF",
+            "BackgroundImage": "",
+            "CloseScreenAnimation": "default",
+            "Icon": "",
+            "OpenScreenAnimation": "default",
+            "ScreenOrientation": "portrait",
+            "Scrollable": "False",
+            "ShowListsAsJson": "True",
+            "ShowStatusBar": "True",
+            "Sizing": "Responsive",
+            "Theme": "AppTheme.Light.DarkActionBar",
+            "TitleVisible": "True",
+            "VersionCode": "1",
+            "VersionName": "1.0",
             "Uuid": str(uuid.uuid4())
         }
     }
@@ -265,7 +265,14 @@ def create_basic_project_structure(app_name, app_type, prompt):
             "$Name": "Button1",
             "$Type": "Button",
             "$Version": "7",
+            "BackgroundColor": "&H007AFF",
+            "FontBold": "True",
+            "FontSize": "14",
+            "Shape": "1",
             "Text": "Click Me",
+            "TextColor": "&HFFFFFFFF",
+            "Width": "-2",
+            "Height": "-2",
             "Uuid": str(uuid.uuid4())
         })
     
@@ -274,7 +281,12 @@ def create_basic_project_structure(app_name, app_type, prompt):
             "$Name": "Label1",
             "$Type": "Label",
             "$Version": "5",
+            "FontSize": "14",
             "Text": "Hello World!",
+            "TextAlignment": "1",
+            "TextColor": "&HFF000000",
+            "Width": "-2",
+            "Height": "-2",
             "Uuid": str(uuid.uuid4())
         })
     
@@ -283,7 +295,11 @@ def create_basic_project_structure(app_name, app_type, prompt):
             "$Name": "TextBox1",
             "$Type": "TextBox",
             "$Version": "5",
+            "BackgroundColor": "&HFFFFFFFF",
+            "FontSize": "14",
             "Hint": "Enter text here",
+            "Width": "-2",
+            "Height": "-2",
             "Uuid": str(uuid.uuid4())
         })
     
@@ -292,6 +308,8 @@ def create_basic_project_structure(app_name, app_type, prompt):
             "$Name": "Image1",
             "$Type": "Image",
             "$Version": "4",
+            "Width": "-2",
+            "Height": "-2",
             "Uuid": str(uuid.uuid4())
         })
     
@@ -300,18 +318,42 @@ def create_basic_project_structure(app_name, app_type, prompt):
             "$Name": "ListView1",
             "$Type": "ListView",
             "$Version": "6",
+            "Width": "-2",
+            "Height": "-2",
             "Uuid": str(uuid.uuid4())
         })
     
     # Add calculator-specific components if mentioned
     if 'calculator' in prompt_lower:
+        # Add display label first
+        components.append({
+            "$Name": "DisplayLabel",
+            "$Type": "Label",
+            "$Version": "5",
+            "BackgroundColor": "&HFFFFFFFF",
+            "FontSize": "24",
+            "Text": "0",
+            "TextAlignment": "2",
+            "TextColor": "&HFF000000",
+            "Width": "-2",
+            "Height": "-2",
+            "Uuid": str(uuid.uuid4())
+        })
+        
         # Add number buttons
         for i in range(10):
             components.append({
                 "$Name": f"Button{i}",
                 "$Type": "Button",
                 "$Version": "7",
+                "BackgroundColor": "&HFF4CAF50",
+                "FontBold": "True",
+                "FontSize": "16",
+                "Shape": "1",
                 "Text": str(i),
+                "TextColor": "&HFFFFFFFF",
+                "Width": "-2",
+                "Height": "-2",
                 "Uuid": str(uuid.uuid4())
             })
         
@@ -322,19 +364,16 @@ def create_basic_project_structure(app_name, app_type, prompt):
                 "$Name": f"ButtonOp{i}",
                 "$Type": "Button",
                 "$Version": "7",
+                "BackgroundColor": "&HFFFF9800",
+                "FontBold": "True",
+                "FontSize": "16",
+                "Shape": "1",
                 "Text": op,
+                "TextColor": "&HFFFFFFFF",
+                "Width": "-2",
+                "Height": "-2",
                 "Uuid": str(uuid.uuid4())
             })
-        
-        # Add display label
-        components.append({
-            "$Name": "DisplayLabel",
-            "$Type": "Label",
-            "$Version": "5",
-            "Text": "0",
-            "FontSize": "24",
-            "Uuid": str(uuid.uuid4())
-        })
     
     # Add components to project
     if components:
@@ -349,26 +388,17 @@ def create_blocks_file(app_name, components):
         "Source": "Form",
         "Properties": {
             "$Name": "Screen1",
-            "$Type": "Form",
-            "$Version": "31",
-            "Uuid": str(uuid.uuid4()),
-            "$Components": []
+            "$Type": "Form", 
+            "$Version": "31"
         }
     }
     
-    # Add basic event blocks for buttons
-    event_blocks = []
-    for component in components:
-        if component.get("$Type") == "Button":
-            event_blocks.append({
-                "type": "component_event",
-                "id": str(uuid.uuid4()),
-                "component": component["$Name"],
-                "event": "Click"
-            })
-    
-    if event_blocks:
-        blocks_data["blocks"] = event_blocks
+    # Create basic blocks structure - empty blocks file for now
+    # MIT App Inventor will accept an empty blocks file
+    blocks_data["blocks"] = {
+        "languageVersion": 0,
+        "blocks": []
+    }
     
     return blocks_data
 
@@ -394,12 +424,13 @@ def generate_aia():
         # Create AIA file in memory
         aia_buffer = io.BytesIO()
         
+        # Clean app name for file paths
+        clean_app_name = app_name.replace(' ', '').replace('-', '').replace('_', '')
+        
         with zipfile.ZipFile(aia_buffer, 'w', zipfile.ZIP_DEFLATED) as aia_file:
-            # Add project.properties
-            project_json = json.dumps(project_data, indent=2)
-            aia_file.writestr('youngandroidproject/project.properties', f"""
-main=appinventor.ai_user.{app_name}.Screen1
-name={app_name}
+            # Add project.properties with correct format
+            project_properties_content = f"""main=appinventor.ai_user.{clean_app_name}.Screen1
+name={clean_app_name}
 assets=../assets
 source=../src
 build=../build
@@ -407,26 +438,26 @@ versioncode=1
 versionname=1.0
 useslocation=false
 aname={app_name}
-            """.strip())
+sizing=Responsive
+showlistsasjson=true"""
+            aia_file.writestr('youngandroidproject/project.properties', project_properties_content)
             
-            # Add Screen1.scm (scheme file)
+            # Add Screen1.scm (scheme file) with proper format
+            project_json = json.dumps(project_data, indent=2)
             screen_scm = f'#|\n$JSON\n{project_json}\n|#'
-            aia_file.writestr(f'src/appinventor/ai_user/{app_name}/Screen1.scm', screen_scm)
+            aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.scm', screen_scm)
             
-            # Add Screen1.bky (blocks file)
+            # Add Screen1.bky (blocks file) with proper format
             blocks_json = json.dumps(blocks_data, indent=2)
             blocks_content = f'#|\n$JSON\n{blocks_json}\n|#'
-            aia_file.writestr(f'src/appinventor/ai_user/{app_name}/Screen1.bky', blocks_content)
+            aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.bky', blocks_content)
             
-            # Add required empty directories
-            for dir_path in ['assets', 'src', 'build']:
-                aia_file.writestr(f'{dir_path}/.gitkeep', '')
+            # Add required directory structure
+            aia_file.writestr('assets/.gitkeep', '')
+            aia_file.writestr('build/.gitkeep', '')
             
-            # Add proper directory structure
-            aia_file.writestr(f'src/appinventor/ai_user/{app_name}/.gitkeep', '')
-            
-            # Add a simple asset file to ensure assets are properly recognized
-            aia_file.writestr('assets/README.txt', f'Assets for {app_name}')
+            # Add meta-inf for proper AIA format
+            aia_file.writestr('META-INF/MANIFEST.MF', 'Manifest-Version: 1.0\n')
         
         aia_buffer.seek(0)
         
