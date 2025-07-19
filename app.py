@@ -469,14 +469,24 @@ def create_simple_project_structure(app_name, app_type, prompt):
     return project_properties
 
 def create_blocks_file():
-    """Create minimal blocks file"""
+    """Create proper blocks file structure"""
     return {
         "YaVersion": "208",
         "Source": "Form",
         "Properties": {
             "$Name": "Screen1",
             "$Type": "Form",
-            "$Version": "25"
+            "$Version": "25",
+            "$Components": [],
+            "$Blocks": {
+                "Uuid": str(uuid.uuid4()),
+                "collapse": "false",
+                "comment": "",
+                "disabled": "false",
+                "type": "component_event",
+                "x": "0",
+                "y": "0"
+            }
         }
     }
 
@@ -542,10 +552,14 @@ sizing=Responsive"""
             screen_scm = f'#|\n$JSON\n{project_json}\n|#'
             aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.scm', screen_scm)
 
-            # Add Screen1.bky
-            blocks_json = json.dumps(blocks_data, indent=2)
-            blocks_content = f'#|\n$JSON\n{blocks_json}\n|#'
-            aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.bky', blocks_content)
+            # Add Screen1.bky (proper blocks XML format)
+            blocks_xml = '''<xml xmlns="http://www.w3.org/1999/xhtml">
+  <block type="component_event" id="1" x="0" y="0">
+    <field name="component_object_name">Screen1</field>
+    <field name="component_event_name">Initialize</field>
+  </block>
+</xml>'''
+            aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.bky', blocks_xml)
 
             # Add required directories
             aia_file.writestr('assets/.gitkeep', '')
