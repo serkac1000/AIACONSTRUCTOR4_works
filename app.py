@@ -1,27 +1,26 @@
-
-from flask import Flask, render_template, request, jsonify, send_file, session
+from flask import Flask, render_template, request, jsonify, send_file
 import json
 import zipfile
 import io
 import os
 import uuid
 import requests
-import base64
 from datetime import datetime
-from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-# HTML template for the web interface with Gemini API integration
+# Store API key temporarily in memory (not in session to avoid cookie issues)
+api_key_storage = {}
+
+# HTML template for the web interface
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIT App Inventor AIA Generator with Gemini AI</title>
+    <title>MIT App Inventor AIA Generator</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -172,30 +171,6 @@ HTML_TEMPLATE = '''
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-        .image-preview {
-            max-width: 150px;
-            max-height: 150px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            object-fit: cover;
-        }
-        .image-container {
-            position: relative;
-            display: inline-block;
-        }
-        .remove-image {
-            position: absolute;
-            top: -10px;
-            right: -10px;
-            background: #ff4444;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 25px;
-            height: 25px;
-            cursor: pointer;
-            font-size: 12px;
-        }
         @media (max-width: 768px) {
             .row {
                 flex-direction: column;
@@ -205,8 +180,8 @@ HTML_TEMPLATE = '''
 </head>
 <body>
     <div class="container">
-        <h1>🤖 MIT App Inventor AIA Generator with Gemini AI</h1>
-        
+        <h1>🤖 MIT App Inventor AIA Generator</h1>
+
         <!-- Gemini API Configuration Section -->
         <div class="api-section">
             <h3>🔑 Gemini API Configuration</h3>
@@ -215,23 +190,8 @@ HTML_TEMPLATE = '''
                 <input type="password" id="geminiApiKey" name="geminiApiKey" placeholder="Enter your Gemini API key">
                 <small style="color: #666;">Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></small>
             </div>
-            <button type="button" class="btn btn-small btn-test" onclick="testGeminiAPI()">Test API</button>
-            <button type="button" class="btn btn-small" onclick="saveGeminiAPI()">Save API Key</button>
-            <button type="button" class="btn btn-small btn-test" onclick="testSavedAPI()">Test Saved API</button>
+            <button type="button" class="btn btn-small btn-test" onclick="testAndSaveGeminiAPI()">Test & Save API</button>
             <div id="apiStatus" class="api-status" style="display: none;"></div>
-        </div>
-
-        <!-- Image Upload Section -->
-        <div class="api-section">
-            <h3>🖼️ Screen Design Images</h3>
-            <div class="form-group">
-                <label for="designImages">Upload reference images for your app design:</label>
-                <input type="file" id="designImages" accept="image/*" multiple onchange="handleImageUpload()">
-                <small style="color: #666;">Upload images to help AI understand your desired app layout and design</small>
-            </div>
-            <div id="imagePreview" style="display: none; margin-top: 10px;">
-                <div id="imageContainer" style="display: flex; flex-wrap: wrap; gap: 10px;"></div>
-            </div>
         </div>
 
         <form id="aiaForm">
@@ -239,7 +199,7 @@ HTML_TEMPLATE = '''
                 <div class="col">
                     <div class="form-group">
                         <label for="appName">App Name:</label>
-                        <input type="text" id="appName" name="appName" required placeholder="My Awesome App">
+                        <input type="text" id="appName" name="appName" required placeholder="MyApp">
                     </div>
                 </div>
                 <div class="col">
@@ -247,43 +207,33 @@ HTML_TEMPLATE = '''
                         <label for="appType">App Type:</label>
                         <select id="appType" name="appType">
                             <option value="basic">Basic App</option>
-                            <option value="game">Game</option>
-                            <option value="utility">Utility</option>
-                            <option value="educational">Educational</option>
-                            <option value="social">Social</option>
                             <option value="calculator">Calculator</option>
                             <option value="todo">Todo List</option>
-                            <option value="weather">Weather App</option>
+                            <option value="game">Simple Game</option>
                         </select>
                     </div>
                 </div>
             </div>
-            
+
             <div class="form-group">
-                <label for="prompt">Describe your app (be very specific about features, UI layout, colors, and functionality):</label>
-                <textarea id="prompt" name="prompt" required placeholder="Create a calculator app with a display screen at the top, number buttons (0-9) arranged in a 4x3 grid, operation buttons (+, -, *, /) on the right side, an equals button at the bottom, and a clear button. Use blue buttons with white text, white background, and make the display show large black text. The app should handle basic arithmetic operations and show results when equals is pressed."></textarea>
-                <small style="color: #666; margin-top: 5px; display: block;">
-                    💡 <strong>Extension Tips:</strong> Mention specific features for enhanced functionality:<br>
-                    📷 <em>camera</em> - photo capture | 📍 <em>location</em> - GPS/maps | 🔊 <em>speech</em> - voice commands<br>
-                    📶 <em>bluetooth/wifi</em> - connectivity | 🎵 <em>sound</em> - audio | 🌐 <em>web</em> - API calls<br>
-                    📱 <em>sensor</em> - device sensors | 💾 <em>database</em> - data storage | 🔔 <em>notification</em> - alerts
-                </small>
+                <label for="prompt">Describe your app:</label>
+                <textarea id="prompt" name="prompt" required placeholder="Create a simple calculator app with buttons for numbers 0-9, basic operations (+, -, *, /), equals button, and a display area."></textarea>
             </div>
-            
+
             <div class="form-group">
                 <label>
                     <input type="checkbox" id="useGemini" name="useGemini" checked> Use Gemini AI for enhanced generation
                 </label>
             </div>
-            
-            <button type="submit" class="btn">Generate AIA File with AI</button>
+
+            <button type="submit" class="btn">Generate AIA File</button>
         </form>
-        
+
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>Generating your MIT App Inventor project with AI...</p>
+            <p>Generating your MIT App Inventor project...</p>
         </div>
-        
+
         <div class="result" id="result">
             <h3>Success! 🎉</h3>
             <p>Your AIA file has been generated successfully.</p>
@@ -293,19 +243,12 @@ HTML_TEMPLATE = '''
         <div class="result error" id="errorResult">
             <h3>Error ❌</h3>
             <p id="errorMessage">Something went wrong...</p>
-            <details>
-                <summary>Technical Details</summary>
-                <pre id="errorDetails"></pre>
-            </details>
         </div>
     </div>
 
     <script>
-        let apiKeyStored = false;
-        let uploadedImages = [];
-
-        // Test Gemini API connection
-        async function testGeminiAPI() {
+        // Test and save Gemini API key
+        async function testAndSaveGeminiAPI() {
             const apiKey = document.getElementById('geminiApiKey').value;
             if (!apiKey) {
                 showAPIStatus('Please enter an API key first', 'error');
@@ -320,80 +263,13 @@ HTML_TEMPLATE = '''
                     },
                     body: JSON.stringify({ api_key: apiKey })
                 });
-                
+
                 const result = await response.json();
                 if (result.success) {
-                    showAPIStatus('✅ API connection successful!', 'connected');
+                    showAPIStatus('✅ API key tested and saved successfully!', 'connected');
+                    document.getElementById('geminiApiKey').value = ''; // Clear for security
                 } else {
                     showAPIStatus('❌ API test failed: ' + result.error, 'error');
-                }
-            } catch (error) {
-                showAPIStatus('❌ Network error: ' + error.message, 'error');
-            }
-        }
-
-        // Save Gemini API key
-        async function saveGeminiAPI() {
-            const apiKey = document.getElementById('geminiApiKey').value;
-            if (!apiKey) {
-                showAPIStatus('Please enter an API key first', 'error');
-                return;
-            }
-
-            try {
-                // First save the key
-                const saveResponse = await fetch('/save_gemini_key', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ api_key: apiKey })
-                });
-                
-                const saveResult = await saveResponse.json();
-                if (saveResult.success) {
-                    showAPIStatus('✅ API key saved! Testing connection...', 'connected');
-                    apiKeyStored = true;
-                    
-                    // Auto-test the API after saving
-                    const testResponse = await fetch('/test_gemini', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ api_key: apiKey })
-                    });
-                    
-                    const testResult = await testResponse.json();
-                    if (testResult.success) {
-                        showAPIStatus('✅ API key saved and tested successfully!', 'connected');
-                        document.getElementById('geminiApiKey').value = ''; // Clear for security
-                    } else {
-                        showAPIStatus('✅ API key saved but test failed: ' + testResult.error, 'error');
-                    }
-                } else {
-                    showAPIStatus('❌ Failed to save API key: ' + saveResult.error, 'error');
-                }
-            } catch (error) {
-                showAPIStatus('❌ Network error: ' + error.message, 'error');
-            }
-        }
-
-        // Test saved Gemini API key
-        async function testSavedAPI() {
-            try {
-                const response = await fetch('/test_saved_gemini', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    showAPIStatus('✅ Saved API key is working!', 'connected');
-                } else {
-                    showAPIStatus('❌ Saved API test failed: ' + result.error, 'error');
                 }
             } catch (error) {
                 showAPIStatus('❌ Network error: ' + error.message, 'error');
@@ -410,20 +286,15 @@ HTML_TEMPLATE = '''
         // Form submission
         document.getElementById('aiaForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const formData = new FormData(e.target);
             const data = Object.fromEntries(formData);
-            
-            // Add uploaded images to the data
-            if (uploadedImages.length > 0) {
-                data.images = uploadedImages;
-            }
-            
+
             document.getElementById('loading').style.display = 'block';
             document.getElementById('result').style.display = 'none';
             document.getElementById('errorResult').style.display = 'none';
             document.querySelector('.btn').disabled = true;
-            
+
             try {
                 const response = await fetch('/generate', {
                     method: 'POST',
@@ -432,176 +303,56 @@ HTML_TEMPLATE = '''
                     },
                     body: JSON.stringify(data)
                 });
-                
+
                 if (response.ok) {
                     const contentType = response.headers.get('content-type');
                     if (contentType && contentType.includes('application/json')) {
                         // Error response
                         const errorData = await response.json();
-                        showError('Generation failed: ' + errorData.error, errorData.details || '');
+                        showError('Generation failed: ' + errorData.error);
                     } else {
                         // Success - file download
                         const blob = await response.blob();
                         const url = window.URL.createObjectURL(blob);
                         const filename = `${data.appName.replace(/[^a-z0-9]/gi, '_')}.aia`;
-                        
+
                         document.getElementById('downloadLink').href = url;
                         document.getElementById('downloadLink').download = filename;
                         document.getElementById('result').style.display = 'block';
                     }
                 } else {
                     const errorText = await response.text();
-                    showError('Server error: ' + response.status, errorText);
+                    showError('Server error: ' + response.status);
                 }
             } catch (error) {
-                showError('Network error: ' + error.message, 'Check your internet connection and try again.');
+                showError('Network error: ' + error.message);
             }
-            
+
             document.getElementById('loading').style.display = 'none';
             document.querySelector('.btn').disabled = false;
         });
 
-        function showError(message, details) {
+        function showError(message) {
             document.getElementById('errorMessage').textContent = message;
-            document.getElementById('errorDetails').textContent = details;
             document.getElementById('errorResult').style.display = 'block';
-        }
-
-        // Handle image upload
-        function handleImageUpload() {
-            const fileInput = document.getElementById('designImages');
-            const files = fileInput.files;
-            const imageContainer = document.getElementById('imageContainer');
-            const imagePreview = document.getElementById('imagePreview');
-            
-            if (files.length > 0) {
-                imagePreview.style.display = 'block';
-                imageContainer.innerHTML = '';
-                uploadedImages = [];
-                
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        const imageData = e.target.result;
-                        uploadedImages.push({
-                            name: file.name,
-                            data: imageData.split(',')[1] // Remove data:image/...;base64, prefix
-                        });
-                        
-                        const container = document.createElement('div');
-                        container.className = 'image-container';
-                        
-                        const img = document.createElement('img');
-                        img.src = imageData;
-                        img.className = 'image-preview';
-                        img.alt = file.name;
-                        
-                        const removeBtn = document.createElement('button');
-                        removeBtn.innerHTML = '×';
-                        removeBtn.className = 'remove-image';
-                        removeBtn.onclick = () => removeImage(i, container);
-                        
-                        container.appendChild(img);
-                        container.appendChild(removeBtn);
-                        imageContainer.appendChild(container);
-                    };
-                    
-                    reader.readAsDataURL(file);
-                }
-            } else {
-                imagePreview.style.display = 'none';
-                uploadedImages = [];
-            }
-        }
-
-        function removeImage(index, container) {
-            container.remove();
-            uploadedImages.splice(index, 1);
-            if (uploadedImages.length === 0) {
-                document.getElementById('imagePreview').style.display = 'none';
-            }
         }
     </script>
 </body>
 </html>
 '''
 
-def call_gemini_api(api_key, prompt, extensions=None):
-    """Call Gemini API to enhance app generation with extension support"""
+def call_gemini_api(api_key, prompt):
+    """Call Gemini API for app generation"""
     try:
-        # Clean the API key
-        api_key = api_key.strip()
-        
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-        
-        # For testing, use a simple prompt
-        if prompt == "Say hello":
-            test_prompt = "Say hello world"
+
+        if prompt == "test":
+            test_prompt = "Say hello"
         else:
-            # Build extension context
-            extension_context = ""
-            if extensions:
-                extension_context = f"""
-                
-EXTENSION REQUIREMENTS:
-{extensions}
+            test_prompt = f"""Create a simple MIT App Inventor app specification for: {prompt}
 
-Please incorporate these extension requirements into your app design.
-                """
-            
-            test_prompt = f"""
-            You are an expert MIT App Inventor developer. Based on the following app description, generate a detailed specification for creating an AIA file.
+            Respond with a basic JSON structure focusing on simple, working components."""
 
-            App Description: {prompt}{extension_context}
-
-            IMPORTANT CONSTRAINTS:
-            - Use only these component versions: Button(6), Label(5), TextBox(5), Image(6), ListView(6), Slider(1), CheckBox(2), RadioButton(2), WebViewer(7), Camera(3), Canvas(16), HorizontalArrangement(4), VerticalArrangement(4), TableArrangement(2)
-            - Colors must be in MIT App Inventor format: &HFF + 6-digit hex (e.g., &HFFFF0000 for red)
-            - Width/Height: use "-2" for Fill Parent, "-1" for Wrap Content, or pixel values
-            - Text alignment: 0=left, 1=center, 2=right
-
-            Please provide a JSON response with the following structure:
-            {{
-                "components": [
-                    {{
-                        "name": "component_name",
-                        "type": "Button|Label|TextBox|Image|ListView|HorizontalArrangement|VerticalArrangement|etc",
-                        "properties": {{
-                            "Text": "button text",
-                            "BackgroundColor": "&HFFFF4CAF50",
-                            "TextColor": "&HFFFFFFFF",
-                            "FontSize": "16",
-                            "Width": "-2",
-                            "Height": "-2",
-                            "TextAlignment": "1"
-                        }}
-                    }}
-                ],
-                "layout": {{
-                    "arrangement": "vertical|horizontal",
-                    "background_color": "&HFFFFFFFF",
-                    "title": "App Title"
-                }},
-                "extensions": [
-                    {{
-                        "name": "extension_name",
-                        "purpose": "what it does"
-                    }}
-                ],
-                "blocks": [
-                    {{
-                        "component": "Button1",
-                        "event": "Click",
-                        "action": "set_text_to_label"
-                    }}
-                ]
-            }}
-
-            Focus on creating a functional, well-designed app with proper component arrangement and styling.
-            """
-        
         payload = {
             "contents": [{
                 "parts": [{
@@ -609,112 +360,43 @@ Please incorporate these extension requirements into your app design.
                 }]
             }]
         }
-        
-        print(f"Making request to: {url[:80]}...")  # Debug log (partial URL)
-        print(f"Payload: {json.dumps(payload, indent=2)[:200]}...")  # Debug log (partial payload)
-        
+
         response = requests.post(
             url,
             headers={"Content-Type": "application/json"},
             json=payload,
             timeout=30
         )
-        
-        print(f"Response status: {response.status_code}")  # Debug log
-        print(f"Response headers: {dict(response.headers)}")  # Debug log
-        
+
         if response.status_code == 200:
             result = response.json()
-            print(f"Response content: {json.dumps(result, indent=2)[:500]}...")  # Debug log
-            
             if 'candidates' in result and len(result['candidates']) > 0:
-                candidate = result['candidates'][0]
-                if 'content' in candidate and 'parts' in candidate['content']:
-                    content = candidate['content']['parts'][0]['text']
-                elif 'parts' in candidate:
-                    content = candidate['parts'][0]['text']
-                else:
-                    return {"error": "Unexpected API response format"}
-                
-                # For test requests, just return success
-                if prompt == "Say hello":
-                    return {"success": True, "message": content}
-                
-                # Try to extract JSON from the response for actual requests
-                try:
-                    # Look for JSON content between ```json and ``` or just parse directly
-                    if '```json' in content:
-                        json_start = content.find('```json') + 7
-                        json_end = content.find('```', json_start)
-                        json_content = content[json_start:json_end].strip()
-                    elif '{' in content and '}' in content:
-                        json_start = content.find('{')
-                        json_end = content.rfind('}') + 1
-                        json_content = content[json_start:json_end]
-                    else:
-                        json_content = content
-                    
-                    return json.loads(json_content)
-                except json.JSONDecodeError:
-                    # If JSON parsing fails, return a basic structure
-                    return {
-                        "components": [],
-                        "layout": {"arrangement": "vertical", "background_color": "#FFFFFF"},
-                        "blocks": [],
-                        "ai_response": content  # Include raw response for debugging
-                    }
+                content = result['candidates'][0]['content']['parts'][0]['text']
+                return {"success": True, "content": content}
             else:
-                return {"error": "No response candidates from Gemini"}
+                return {"error": "No response from Gemini"}
         else:
-            error_text = response.text
-            print(f"API Error Response: {error_text}")  # Debug log
-            return {"error": f"API call failed: {response.status_code} - {error_text}"}
-            
-    except requests.exceptions.Timeout:
-        return {"error": "API request timed out"}
-    except requests.exceptions.ConnectionError:
-        return {"error": "Failed to connect to Gemini API"}
-    except requests.exceptions.RequestException as e:
-        return {"error": f"Request error: {str(e)}"}
-    except Exception as e:
-        print(f"Unexpected error in call_gemini_api: {str(e)}")  # Debug log
-        return {"error": f"Unexpected error: {str(e)}"}
+            return {"error": f"API error: {response.status_code}"}
 
-def create_advanced_project_structure(app_name, app_type, prompt, gemini_data=None):
-    """Create advanced MIT App Inventor project structure using Gemini AI data"""
-    
-    # Compatible component versions for MIT App Inventor (using older, more stable versions)
-    COMPONENT_VERSIONS = {
-        "Button": "5",
-        "Label": "4", 
-        "TextBox": "4",
-        "Image": "3",  # Using more compatible version
-        "ListView": "5",
-        "Slider": "1",
-        "CheckBox": "2",
-        "RadioButton": "2",
-        "WebViewer": "6",
-        "Camera": "1",
-        "Canvas": "12",
-        "HorizontalArrangement": "3",
-        "VerticalArrangement": "3",
-        "TableArrangement": "1"
-    }
-    
-    # Base project properties with simpler, more compatible structure
+    except Exception as e:
+        return {"error": f"Request failed: {str(e)}"}
+
+def create_simple_project_structure(app_name, app_type, prompt):
+    """Create simple, compatible MIT App Inventor project structure"""
+
+    # Use very basic, stable component versions
     project_properties = {
         "YaVersion": "208",
         "Source": "Form",
         "Properties": {
             "$Name": "Screen1",
             "$Type": "Form",
-            "$Version": "27",  # Using older, more stable version
+            "$Version": "25",
             "AppName": app_name,
             "Title": app_name,
             "AlignHorizontal": "1",
-            "AlignVertical": "1", 
+            "AlignVertical": "1",
             "BackgroundColor": "&HFFFFFFFF",
-            "Icon": "",
             "ScreenOrientation": "portrait",
             "Scrollable": "False",
             "TitleVisible": "True",
@@ -723,158 +405,80 @@ def create_advanced_project_structure(app_name, app_type, prompt, gemini_data=No
             "Uuid": str(uuid.uuid4())
         }
     }
-    
-    # Apply Gemini-generated layout if available
-    if gemini_data and 'layout' in gemini_data:
-        layout = gemini_data['layout']
-        if 'background_color' in layout:
-            try:
-                # Convert hex color to MIT App Inventor format
-                hex_color = layout['background_color'].replace('#', '')
-                ai_color = f"&H{hex_color.upper()}"
-                project_properties["Properties"]["BackgroundColor"] = ai_color
-            except:
-                pass
-        if 'title' in layout:
-            project_properties["Properties"]["Title"] = layout['title']
-    
+
+    # Create simple components based on app type
     components = []
-    
-    # Use Gemini-generated components if available
-    if gemini_data and 'components' in gemini_data:
-        for i, comp in enumerate(gemini_data['components']):
-            try:
-                comp_type = comp.get('type', 'Button')
-                component = {
-                    "$Name": comp.get('name', f"Component{i+1}"),
-                    "$Type": comp_type,
-                    "$Version": COMPONENT_VERSIONS.get(comp_type, "6"),  # Use correct version
-                    "Uuid": str(uuid.uuid4())
-                }
-                
-                # Add properties from Gemini
-                if 'properties' in comp:
-                    for prop, value in comp['properties'].items():
-                        if prop.startswith('&H') or prop.startswith('#'):
-                            # Handle color conversion
-                            try:
-                                if value.startswith('#'):
-                                    hex_color = value.replace('#', '')
-                                    component[prop] = f"&H{hex_color.upper()}"
-                                else:
-                                    component[prop] = value
-                            except:
-                                component[prop] = value
-                        else:
-                            component[prop] = value
-                
-                # Set default properties if not provided
-                if 'Width' not in component:
-                    component['Width'] = "-2"
-                if 'Height' not in component:
-                    component['Height'] = "-2"
-                    
-                components.append(component)
-            except Exception as e:
-                # Skip malformed components
-                continue
-    
-    # Fallback to basic components if Gemini didn't provide any or they failed
-    if not components:
-        components = create_fallback_components(app_type, prompt)
-    
-    # Add components to project
+
+    if app_type == "calculator":
+        # Simple calculator layout
+        components.append({
+            "$Name": "DisplayLabel",
+            "$Type": "Label",
+            "$Version": "4",
+            "FontSize": "24",
+            "Text": "0",
+            "TextAlignment": "2",
+            "BackgroundColor": "&HFFF0F0F0",
+            "Width": "-2",
+            "Height": "80",
+            "Uuid": str(uuid.uuid4())
+        })
+
+        # Number buttons
+        for i in range(10):
+            components.append({
+                "$Name": f"Button{i}",
+                "$Type": "Button",
+                "$Version": "5",
+                "Text": str(i),
+                "FontSize": "18",
+                "Width": "80",
+                "Height": "60",
+                "Uuid": str(uuid.uuid4())
+            })
+    else:
+        # Basic app components
+        components.append({
+            "$Name": "TitleLabel",
+            "$Type": "Label",
+            "$Version": "4",
+            "FontSize": "20",
+            "Text": f"Welcome to {app_name}",
+            "TextAlignment": "1",
+            "Width": "-2",
+            "Height": "-1",
+            "Uuid": str(uuid.uuid4())
+        })
+
+        components.append({
+            "$Name": "ActionButton",
+            "$Type": "Button",
+            "$Version": "5",
+            "Text": "Click Me",
+            "FontSize": "16",
+            "BackgroundColor": "&HFF4CAF50",
+            "TextColor": "&HFFFFFFFF",
+            "Width": "-2",
+            "Height": "-1",
+            "Uuid": str(uuid.uuid4())
+        })
+
     if components:
         project_properties["Properties"]["$Components"] = components
-    
+
     return project_properties
 
-def extract_extensions_from_prompt(prompt):
-    """Extract extension requirements from user prompt"""
-    extensions = []
-    prompt_lower = prompt.lower()
-    
-    # Common extension patterns
-    extension_patterns = {
-        'camera': 'camera functionality, photo capture, image processing',
-        'location': 'GPS, location services, maps integration',
-        'sensor': 'accelerometer, gyroscope, device sensors',
-        'bluetooth': 'Bluetooth connectivity, device communication',
-        'wifi': 'WiFi connectivity, network detection',
-        'speech': 'text-to-speech, speech recognition, voice commands',
-        'sound': 'audio playback, sound effects, music',
-        'file': 'file reading, writing, storage access',
-        'web': 'HTTP requests, API calls, internet connectivity',
-        'notification': 'push notifications, alerts, reminders',
-        'database': 'local storage, SQLite, data persistence',
-        'qr': 'QR code scanning, barcode reading',
-        'animation': 'smooth transitions, visual effects'
-    }
-    
-    for keyword, description in extension_patterns.items():
-        if keyword in prompt_lower:
-            extensions.append(f"- {keyword.upper()}: {description}")
-    
-    return "\n".join(extensions) if extensions else None
-
-def create_fallback_components(app_type, prompt):
-    """Create fallback components when Gemini fails"""
-    components = []
-    prompt_lower = prompt.lower()
-    
-    # Always create a simple, compatible structure
-    components.append({
-        "$Name": "Label1",
-        "$Type": "Label",
-        "$Version": "4",
-        "FontSize": "14",
-        "Text": "Welcome to " + app_type.title() + " App!",
-        "TextAlignment": "1",
-        "TextColor": "&HFF000000",
-        "Width": "-2",
-        "Height": "-1",
-        "Uuid": str(uuid.uuid4())
-    })
-    
-    components.append({
-        "$Name": "Button1",
-        "$Type": "Button",
-        "$Version": "5",
-        "BackgroundColor": "&HFF4CAF50",
-        "FontSize": "14",
-        "Text": "Click Me",
-        "TextColor": "&HFFFFFFFF",
-        "Width": "-2",
-        "Height": "-1",
-        "Uuid": str(uuid.uuid4())
-    })
-    
-    return components
-
-def create_blocks_file(app_name, components, gemini_data=None):
-    """Create blocks file with potential AI-generated logic"""
-    blocks_data = {
+def create_blocks_file():
+    """Create minimal blocks file"""
+    return {
         "YaVersion": "208",
         "Source": "Form",
         "Properties": {
             "$Name": "Screen1",
-            "$Type": "Form", 
-            "$Version": "31"
+            "$Type": "Form",
+            "$Version": "25"
         }
     }
-    
-    # Create basic blocks structure
-    blocks_data["blocks"] = {
-        "languageVersion": 0,
-        "blocks": []
-    }
-    
-    # Add basic blocks if Gemini provided block suggestions
-    if gemini_data and 'blocks' in gemini_data:
-        # For now, keep it simple - MIT App Inventor blocks are complex to generate
-        pass
-    
-    return blocks_data
 
 @app.route('/')
 def index():
@@ -884,66 +488,23 @@ def index():
 def test_gemini():
     try:
         data = request.json
-        if not data:
-            return jsonify({'success': False, 'error': 'No JSON data received'})
-            
         api_key = data.get('api_key')
-        
-        if not api_key:
-            return jsonify({'success': False, 'error': 'No API key provided'})
-        
-        if not api_key.strip():
-            return jsonify({'success': False, 'error': 'Empty API key provided'})
-        
-        # Test API with a simple request
-        print(f"Testing API with key: {api_key[:10]}...")  # Log first 10 chars for debugging
-        test_result = call_gemini_api(api_key, "Say hello")
-        
-        print(f"API test result: {test_result}")  # Debug log
-        
-        if 'error' in test_result:
-            return jsonify({'success': False, 'error': test_result['error']})
-        else:
-            return jsonify({'success': True, 'message': 'API connection successful', 'response': test_result})
-            
-    except Exception as e:
-        print(f"Exception in test_gemini: {str(e)}")  # Debug log
-        return jsonify({'success': False, 'error': f'Server error: {str(e)}'})
 
-@app.route('/save_gemini_key', methods=['POST'])
-def save_gemini_key():
-    try:
-        data = request.json
-        api_key = data.get('api_key')
-        
         if not api_key:
             return jsonify({'success': False, 'error': 'No API key provided'})
-        
-        # Save API key in session (truncate large responses to avoid cookie size issues)
-        session['gemini_api_key'] = api_key
-        session.permanent = True
-        
-        return jsonify({'success': True, 'message': 'API key saved successfully'})
-        
+
+        # Test and store API key in memory
+        result = call_gemini_api(api_key, "test")
+
+        if result.get('success'):
+            # Store API key temporarily
+            api_key_storage['gemini_key'] = api_key
+            return jsonify({'success': True, 'message': 'API key tested and saved'})
+        else:
+            return jsonify({'success': False, 'error': result.get('error', 'Unknown error')})
+
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/test_saved_gemini', methods=['POST'])
-def test_saved_gemini():
-    try:
-        if 'gemini_api_key' not in session:
-            return jsonify({'success': False, 'error': 'No saved API key found'})
-        
-        api_key = session['gemini_api_key']
-        test_result = call_gemini_api(api_key, "Say hello")
-        
-        if 'error' in test_result:
-            return jsonify({'success': False, 'error': test_result['error']})
-        else:
-            return jsonify({'success': True, 'message': 'Saved API key works!', 'response': test_result})
-            
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Server error: {str(e)}'})
 
 @app.route('/generate', methods=['POST'])
 def generate_aia():
@@ -953,54 +514,15 @@ def generate_aia():
         app_type = data.get('appType', 'basic')
         prompt = data.get('prompt', '')
         use_gemini = data.get('useGemini') == 'on'
-        images = data.get('images', [])
-        
-        gemini_data = None
-        
-        # Use Gemini AI if enabled and API key is available
-        if use_gemini and 'gemini_api_key' in session:
-            try:
-                # Enhance prompt with image context if images were uploaded
-                enhanced_prompt = prompt
-                if images:
-                    image_context = f"\n\nAdditionally, {len(images)} reference image(s) have been provided showing the desired design and layout. Please consider these visual references when generating the app components and layout."
-                    enhanced_prompt += image_context
-                
-                # Extract extensions from prompt
-                extensions = extract_extensions_from_prompt(enhanced_prompt)
-                gemini_data = call_gemini_api(session['gemini_api_key'], enhanced_prompt, extensions)
-                if 'error' in gemini_data:
-                    # Continue without Gemini if it fails
-                    gemini_data = None
-                else:
-                    # Remove large data from gemini_data to prevent session issues
-                    if 'ai_response' in gemini_data:
-                        del gemini_data['ai_response']
-            except Exception as e:
-                # Continue without Gemini if it fails
-                gemini_data = None
-        
-        # Don't store images in session to prevent cookie size issues
-        if 'uploaded_images' in session:
-            del session['uploaded_images']
-        
-        # Create project structure
-        project_data = create_advanced_project_structure(app_name, app_type, prompt, gemini_data)
-        components = project_data["Properties"].get("$Components", [])
-        
-        # Store images for potential use in assets
-        if images:
-            session['uploaded_images'] = images
-        
-        # Create blocks data
-        blocks_data = create_blocks_file(app_name, components, gemini_data)
-        
-        # Create AIA file in memory
+
+        # Create simple project structure
+        project_data = create_simple_project_structure(app_name, app_type, prompt)
+        blocks_data = create_blocks_file()
+
+        # Create AIA file
         aia_buffer = io.BytesIO()
-        
-        # Clean app name for file paths
         clean_app_name = app_name.replace(' ', '').replace('-', '').replace('_', '')
-        
+
         with zipfile.ZipFile(aia_buffer, 'w', zipfile.ZIP_DEFLATED) as aia_file:
             # Add project.properties
             project_properties_content = f"""main=appinventor.ai_user.{clean_app_name}.Screen1
@@ -1012,44 +534,38 @@ versioncode=1
 versionname=1.0
 useslocation=false
 aname={app_name}
-sizing=Responsive
-showlistsasjson=true"""
+sizing=Responsive"""
             aia_file.writestr('youngandroidproject/project.properties', project_properties_content)
-            
+
             # Add Screen1.scm
             project_json = json.dumps(project_data, indent=2)
             screen_scm = f'#|\n$JSON\n{project_json}\n|#'
             aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.scm', screen_scm)
-            
+
             # Add Screen1.bky
             blocks_json = json.dumps(blocks_data, indent=2)
             blocks_content = f'#|\n$JSON\n{blocks_json}\n|#'
             aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.bky', blocks_content)
-            
+
             # Add required directories
             aia_file.writestr('assets/.gitkeep', '')
             aia_file.writestr('build/.gitkeep', '')
-            
-            # Add META-INF
             aia_file.writestr('META-INF/MANIFEST.MF', 'Manifest-Version: 1.0\n')
-        
+
         aia_buffer.seek(0)
-        
+
         return send_file(
             aia_buffer,
             as_attachment=True,
             download_name=f'{app_name.replace(" ", "_")}.aia',
             mimetype='application/zip'
         )
-        
+
     except Exception as e:
-        return jsonify({
-            'error': f'Generation failed: {str(e)}',
-            'details': 'Please check your inputs and try again. If using Gemini AI, verify your API key is valid.'
-        }), 500
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    print("🚀 Starting MIT App Inventor AIA Generator with Gemini AI...")
+    print("🚀 Starting MIT App Inventor AIA Generator...")
     print("📱 Server running at: http://0.0.0.0:5000")
-    print("💡 Navigate to the URL above to start creating AIA files with AI!")
+    print("💡 Navigate to the URL above to start creating AIA files!")
     app.run(host='0.0.0.0', port=5000, debug=True)
