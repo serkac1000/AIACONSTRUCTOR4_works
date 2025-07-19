@@ -262,6 +262,12 @@ HTML_TEMPLATE = '''
             <div class="form-group">
                 <label for="prompt">Describe your app (be very specific about features, UI layout, colors, and functionality):</label>
                 <textarea id="prompt" name="prompt" required placeholder="Create a calculator app with a display screen at the top, number buttons (0-9) arranged in a 4x3 grid, operation buttons (+, -, *, /) on the right side, an equals button at the bottom, and a clear button. Use blue buttons with white text, white background, and make the display show large black text. The app should handle basic arithmetic operations and show results when equals is pressed."></textarea>
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    💡 <strong>Extension Tips:</strong> Mention specific features for enhanced functionality:<br>
+                    📷 <em>camera</em> - photo capture | 📍 <em>location</em> - GPS/maps | 🔊 <em>speech</em> - voice commands<br>
+                    📶 <em>bluetooth/wifi</em> - connectivity | 🎵 <em>sound</em> - audio | 🌐 <em>web</em> - API calls<br>
+                    📱 <em>sensor</em> - device sensors | 💾 <em>database</em> - data storage | 🔔 <em>notification</em> - alerts
+                </small>
             </div>
             
             <div class="form-group">
@@ -522,8 +528,8 @@ HTML_TEMPLATE = '''
 </html>
 '''
 
-def call_gemini_api(api_key, prompt):
-    """Call Gemini API to enhance app generation"""
+def call_gemini_api(api_key, prompt, extensions=None):
+    """Call Gemini API to enhance app generation with extension support"""
     try:
         # Clean the API key
         api_key = api_key.strip()
@@ -534,32 +540,56 @@ def call_gemini_api(api_key, prompt):
         if prompt == "Say hello":
             test_prompt = "Say hello world"
         else:
+            # Build extension context
+            extension_context = ""
+            if extensions:
+                extension_context = f"""
+                
+EXTENSION REQUIREMENTS:
+{extensions}
+
+Please incorporate these extension requirements into your app design.
+                """
+            
             test_prompt = f"""
             You are an expert MIT App Inventor developer. Based on the following app description, generate a detailed specification for creating an AIA file.
 
-            App Description: {prompt}
+            App Description: {prompt}{extension_context}
+
+            IMPORTANT CONSTRAINTS:
+            - Use only these component versions: Button(6), Label(5), TextBox(5), Image(6), ListView(6), Slider(1), CheckBox(2), RadioButton(2), WebViewer(7), Camera(3), Canvas(16), HorizontalArrangement(4), VerticalArrangement(4), TableArrangement(2)
+            - Colors must be in MIT App Inventor format: &HFF + 6-digit hex (e.g., &HFFFF0000 for red)
+            - Width/Height: use "-2" for Fill Parent, "-1" for Wrap Content, or pixel values
+            - Text alignment: 0=left, 1=center, 2=right
 
             Please provide a JSON response with the following structure:
             {{
                 "components": [
                     {{
                         "name": "component_name",
-                        "type": "Button|Label|TextBox|Image|ListView|etc",
+                        "type": "Button|Label|TextBox|Image|ListView|HorizontalArrangement|VerticalArrangement|etc",
                         "properties": {{
                             "Text": "button text",
-                            "BackgroundColor": "#FF4CAF50",
-                            "TextColor": "#FFFFFF",
+                            "BackgroundColor": "&HFFFF4CAF50",
+                            "TextColor": "&HFFFFFFFF",
                             "FontSize": "16",
                             "Width": "-2",
-                            "Height": "-2"
+                            "Height": "-2",
+                            "TextAlignment": "1"
                         }}
                     }}
                 ],
                 "layout": {{
                     "arrangement": "vertical|horizontal",
-                    "background_color": "#FFFFFF",
+                    "background_color": "&HFFFFFFFF",
                     "title": "App Title"
                 }},
+                "extensions": [
+                    {{
+                        "name": "extension_name",
+                        "purpose": "what it does"
+                    }}
+                ],
                 "blocks": [
                     {{
                         "component": "Button1",
@@ -653,7 +683,25 @@ def call_gemini_api(api_key, prompt):
 def create_advanced_project_structure(app_name, app_type, prompt, gemini_data=None):
     """Create advanced MIT App Inventor project structure using Gemini AI data"""
     
-    # Base project properties
+    # Compatible component versions for MIT App Inventor
+    COMPONENT_VERSIONS = {
+        "Button": "6",
+        "Label": "5", 
+        "TextBox": "5",
+        "Image": "6",  # Fixed: Use version 6 instead of 7
+        "ListView": "6",
+        "Slider": "1",
+        "CheckBox": "2",
+        "RadioButton": "2",
+        "WebViewer": "7",
+        "Camera": "3",
+        "Canvas": "16",
+        "HorizontalArrangement": "4",
+        "VerticalArrangement": "4",
+        "TableArrangement": "2"
+    }
+    
+    # Base project properties  
     project_properties = {
         "YaVersion": "208",
         "Source": "Form",
@@ -665,7 +713,7 @@ def create_advanced_project_structure(app_name, app_type, prompt, gemini_data=No
             "Title": app_name,
             "AboutScreen": "",
             "AlignHorizontal": "1",
-            "AlignVertical": "1",
+            "AlignVertical": "1", 
             "BackgroundColor": "&HFFFFFFFF",
             "BackgroundImage": "",
             "CloseScreenAnimation": "default",
@@ -704,10 +752,11 @@ def create_advanced_project_structure(app_name, app_type, prompt, gemini_data=No
     if gemini_data and 'components' in gemini_data:
         for i, comp in enumerate(gemini_data['components']):
             try:
+                comp_type = comp.get('type', 'Button')
                 component = {
                     "$Name": comp.get('name', f"Component{i+1}"),
-                    "$Type": comp.get('type', 'Button'),
-                    "$Version": "7",
+                    "$Type": comp_type,
+                    "$Version": COMPONENT_VERSIONS.get(comp_type, "6"),  # Use correct version
                     "Uuid": str(uuid.uuid4())
                 }
                 
@@ -747,6 +796,34 @@ def create_advanced_project_structure(app_name, app_type, prompt, gemini_data=No
         project_properties["Properties"]["$Components"] = components
     
     return project_properties
+
+def extract_extensions_from_prompt(prompt):
+    """Extract extension requirements from user prompt"""
+    extensions = []
+    prompt_lower = prompt.lower()
+    
+    # Common extension patterns
+    extension_patterns = {
+        'camera': 'camera functionality, photo capture, image processing',
+        'location': 'GPS, location services, maps integration',
+        'sensor': 'accelerometer, gyroscope, device sensors',
+        'bluetooth': 'Bluetooth connectivity, device communication',
+        'wifi': 'WiFi connectivity, network detection',
+        'speech': 'text-to-speech, speech recognition, voice commands',
+        'sound': 'audio playback, sound effects, music',
+        'file': 'file reading, writing, storage access',
+        'web': 'HTTP requests, API calls, internet connectivity',
+        'notification': 'push notifications, alerts, reminders',
+        'database': 'local storage, SQLite, data persistence',
+        'qr': 'QR code scanning, barcode reading',
+        'animation': 'smooth transitions, visual effects'
+    }
+    
+    for keyword, description in extension_patterns.items():
+        if keyword in prompt_lower:
+            extensions.append(f"- {keyword.upper()}: {description}")
+    
+    return "\n".join(extensions) if extensions else None
 
 def create_fallback_components(app_type, prompt):
     """Create fallback components when Gemini fails"""
@@ -931,7 +1008,9 @@ def generate_aia():
                     image_context = f"\n\nAdditionally, {len(images)} reference image(s) have been provided showing the desired design and layout. Please consider these visual references when generating the app components and layout."
                     enhanced_prompt += image_context
                 
-                gemini_data = call_gemini_api(session['gemini_api_key'], enhanced_prompt)
+                # Extract extensions from prompt
+                extensions = extract_extensions_from_prompt(enhanced_prompt)
+                gemini_data = call_gemini_api(session['gemini_api_key'], enhanced_prompt, extensions)
                 if 'error' in gemini_data:
                     # Return error details for debugging
                     return jsonify({
