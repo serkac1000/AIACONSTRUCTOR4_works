@@ -6,10 +6,13 @@ import io
 import os
 import uuid
 import requests
+import base64
 from datetime import datetime
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # HTML template for the web interface with Gemini API integration
 HTML_TEMPLATE = '''
@@ -169,6 +172,30 @@ HTML_TEMPLATE = '''
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        .image-preview {
+            max-width: 150px;
+            max-height: 150px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+        .image-container {
+            position: relative;
+            display: inline-block;
+        }
+        .remove-image {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            font-size: 12px;
+        }
         @media (max-width: 768px) {
             .row {
                 flex-direction: column;
@@ -192,6 +219,19 @@ HTML_TEMPLATE = '''
             <button type="button" class="btn btn-small" onclick="saveGeminiAPI()">Save API Key</button>
             <button type="button" class="btn btn-small btn-test" onclick="testSavedAPI()">Test Saved API</button>
             <div id="apiStatus" class="api-status" style="display: none;"></div>
+        </div>
+
+        <!-- Image Upload Section -->
+        <div class="api-section">
+            <h3>🖼️ Screen Design Images</h3>
+            <div class="form-group">
+                <label for="designImages">Upload reference images for your app design:</label>
+                <input type="file" id="designImages" accept="image/*" multiple onchange="handleImageUpload()">
+                <small style="color: #666;">Upload images to help AI understand your desired app layout and design</small>
+            </div>
+            <div id="imagePreview" style="display: none; margin-top: 10px;">
+                <div id="imageContainer" style="display: flex; flex-wrap: wrap; gap: 10px;"></div>
+            </div>
         </div>
 
         <form id="aiaForm">
@@ -256,6 +296,7 @@ HTML_TEMPLATE = '''
 
     <script>
         let apiKeyStored = false;
+        let uploadedImages = [];
 
         // Test Gemini API connection
         async function testGeminiAPI() {
@@ -367,6 +408,11 @@ HTML_TEMPLATE = '''
             const formData = new FormData(e.target);
             const data = Object.fromEntries(formData);
             
+            // Add uploaded images to the data
+            if (uploadedImages.length > 0) {
+                data.images = uploadedImages;
+            }
+            
             document.getElementById('loading').style.display = 'block';
             document.getElementById('result').style.display = 'none';
             document.getElementById('errorResult').style.display = 'none';
@@ -413,6 +459,63 @@ HTML_TEMPLATE = '''
             document.getElementById('errorMessage').textContent = message;
             document.getElementById('errorDetails').textContent = details;
             document.getElementById('errorResult').style.display = 'block';
+        }
+
+        // Handle image upload
+        function handleImageUpload() {
+            const fileInput = document.getElementById('designImages');
+            const files = fileInput.files;
+            const imageContainer = document.getElementById('imageContainer');
+            const imagePreview = document.getElementById('imagePreview');
+            
+            if (files.length > 0) {
+                imagePreview.style.display = 'block';
+                imageContainer.innerHTML = '';
+                uploadedImages = [];
+                
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        const imageData = e.target.result;
+                        uploadedImages.push({
+                            name: file.name,
+                            data: imageData.split(',')[1] // Remove data:image/...;base64, prefix
+                        });
+                        
+                        const container = document.createElement('div');
+                        container.className = 'image-container';
+                        
+                        const img = document.createElement('img');
+                        img.src = imageData;
+                        img.className = 'image-preview';
+                        img.alt = file.name;
+                        
+                        const removeBtn = document.createElement('button');
+                        removeBtn.innerHTML = '×';
+                        removeBtn.className = 'remove-image';
+                        removeBtn.onclick = () => removeImage(i, container);
+                        
+                        container.appendChild(img);
+                        container.appendChild(removeBtn);
+                        imageContainer.appendChild(container);
+                    };
+                    
+                    reader.readAsDataURL(file);
+                }
+            } else {
+                imagePreview.style.display = 'none';
+                uploadedImages = [];
+            }
+        }
+
+        function removeImage(index, container) {
+            container.remove();
+            uploadedImages.splice(index, 1);
+            if (uploadedImages.length === 0) {
+                document.getElementById('imagePreview').style.display = 'none';
+            }
         }
     </script>
 </body>
@@ -671,7 +774,7 @@ def create_fallback_components(app_type, prompt):
             components.append({
                 "$Name": f"Button{i}",
                 "$Type": "Button",
-                "$Version": "7",
+                "$Version": "6",
                 "BackgroundColor": "&HFF4CAF50",
                 "FontBold": "True",
                 "FontSize": "16",
@@ -687,7 +790,7 @@ def create_fallback_components(app_type, prompt):
         components.append({
             "$Name": "Button1",
             "$Type": "Button",
-            "$Version": "7",
+            "$Version": "6",
             "BackgroundColor": "&HFF007AFF",
             "FontBold": "True",
             "FontSize": "14",
@@ -815,13 +918,20 @@ def generate_aia():
         app_type = data.get('appType', 'basic')
         prompt = data.get('prompt', '')
         use_gemini = data.get('useGemini') == 'on'
+        images = data.get('images', [])
         
         gemini_data = None
         
         # Use Gemini AI if enabled and API key is available
         if use_gemini and 'gemini_api_key' in session:
             try:
-                gemini_data = call_gemini_api(session['gemini_api_key'], prompt)
+                # Enhance prompt with image context if images were uploaded
+                enhanced_prompt = prompt
+                if images:
+                    image_context = f"\n\nAdditionally, {len(images)} reference image(s) have been provided showing the desired design and layout. Please consider these visual references when generating the app components and layout."
+                    enhanced_prompt += image_context
+                
+                gemini_data = call_gemini_api(session['gemini_api_key'], enhanced_prompt)
                 if 'error' in gemini_data:
                     # Return error details for debugging
                     return jsonify({
@@ -835,6 +945,10 @@ def generate_aia():
         # Create project structure
         project_data = create_advanced_project_structure(app_name, app_type, prompt, gemini_data)
         components = project_data["Properties"].get("$Components", [])
+        
+        # Store images for potential use in assets
+        if images:
+            session['uploaded_images'] = images
         
         # Create blocks data
         blocks_data = create_blocks_file(app_name, components, gemini_data)
