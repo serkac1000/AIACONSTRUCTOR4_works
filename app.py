@@ -383,53 +383,63 @@ HTML_TEMPLATE = '''
 def call_gemini_api(api_key, prompt):
     """Call Gemini API to enhance app generation"""
     try:
+        # Clean the API key
+        api_key = api_key.strip()
+        
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
         
-        enhanced_prompt = f"""
-        You are an expert MIT App Inventor developer. Based on the following app description, generate a detailed specification for creating an AIA file.
+        # For testing, use a simple prompt
+        if prompt == "Say hello":
+            test_prompt = "Say hello world"
+        else:
+            test_prompt = f"""
+            You are an expert MIT App Inventor developer. Based on the following app description, generate a detailed specification for creating an AIA file.
 
-        App Description: {prompt}
+            App Description: {prompt}
 
-        Please provide a JSON response with the following structure:
-        {{
-            "components": [
-                {{
-                    "name": "component_name",
-                    "type": "Button|Label|TextBox|Image|ListView|etc",
-                    "properties": {{
-                        "Text": "button text",
-                        "BackgroundColor": "#FF4CAF50",
-                        "TextColor": "#FFFFFF",
-                        "FontSize": "16",
-                        "Width": "-2",
-                        "Height": "-2"
+            Please provide a JSON response with the following structure:
+            {{
+                "components": [
+                    {{
+                        "name": "component_name",
+                        "type": "Button|Label|TextBox|Image|ListView|etc",
+                        "properties": {{
+                            "Text": "button text",
+                            "BackgroundColor": "#FF4CAF50",
+                            "TextColor": "#FFFFFF",
+                            "FontSize": "16",
+                            "Width": "-2",
+                            "Height": "-2"
+                        }}
                     }}
-                }}
-            ],
-            "layout": {{
-                "arrangement": "vertical|horizontal",
-                "background_color": "#FFFFFF",
-                "title": "App Title"
-            }},
-            "blocks": [
-                {{
-                    "component": "Button1",
-                    "event": "Click",
-                    "action": "set_text_to_label"
-                }}
-            ]
-        }}
+                ],
+                "layout": {{
+                    "arrangement": "vertical|horizontal",
+                    "background_color": "#FFFFFF",
+                    "title": "App Title"
+                }},
+                "blocks": [
+                    {{
+                        "component": "Button1",
+                        "event": "Click",
+                        "action": "set_text_to_label"
+                    }}
+                ]
+            }}
 
-        Focus on creating a functional, well-designed app with proper component arrangement and styling.
-        """
+            Focus on creating a functional, well-designed app with proper component arrangement and styling.
+            """
         
         payload = {
             "contents": [{
                 "parts": [{
-                    "text": enhanced_prompt
+                    "text": test_prompt
                 }]
             }]
         }
+        
+        print(f"Making request to: {url[:80]}...")  # Debug log (partial URL)
+        print(f"Payload: {json.dumps(payload, indent=2)[:200]}...")  # Debug log (partial payload)
         
         response = requests.post(
             url,
@@ -438,12 +448,21 @@ def call_gemini_api(api_key, prompt):
             timeout=30
         )
         
+        print(f"Response status: {response.status_code}")  # Debug log
+        print(f"Response headers: {dict(response.headers)}")  # Debug log
+        
         if response.status_code == 200:
             result = response.json()
+            print(f"Response content: {json.dumps(result, indent=2)[:500]}...")  # Debug log
+            
             if 'candidates' in result and len(result['candidates']) > 0:
                 content = result['candidates'][0]['parts'][0]['text']
                 
-                # Try to extract JSON from the response
+                # For test requests, just return success
+                if prompt == "Say hello":
+                    return {"success": True, "message": content}
+                
+                # Try to extract JSON from the response for actual requests
                 try:
                     # Look for JSON content between ```json and ``` or just parse directly
                     if '```json' in content:
@@ -467,12 +486,21 @@ def call_gemini_api(api_key, prompt):
                         "ai_response": content  # Include raw response for debugging
                     }
             else:
-                return {"error": "No response from Gemini"}
+                return {"error": "No response candidates from Gemini"}
         else:
-            return {"error": f"API call failed: {response.status_code} - {response.text}"}
+            error_text = response.text
+            print(f"API Error Response: {error_text}")  # Debug log
+            return {"error": f"API call failed: {response.status_code} - {error_text}"}
             
+    except requests.exceptions.Timeout:
+        return {"error": "API request timed out"}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Failed to connect to Gemini API"}
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Request error: {str(e)}"}
     except Exception as e:
-        return {"error": f"Exception calling Gemini API: {str(e)}"}
+        print(f"Unexpected error in call_gemini_api: {str(e)}")  # Debug log
+        return {"error": f"Unexpected error: {str(e)}"}
 
 def create_advanced_project_structure(app_name, app_type, prompt, gemini_data=None):
     """Create advanced MIT App Inventor project structure using Gemini AI data"""
@@ -674,21 +702,31 @@ def index():
 def test_gemini():
     try:
         data = request.json
+        if not data:
+            return jsonify({'success': False, 'error': 'No JSON data received'})
+            
         api_key = data.get('api_key')
         
         if not api_key:
             return jsonify({'success': False, 'error': 'No API key provided'})
         
+        if not api_key.strip():
+            return jsonify({'success': False, 'error': 'Empty API key provided'})
+        
         # Test API with a simple request
-        test_result = call_gemini_api(api_key, "Create a simple hello world app")
+        print(f"Testing API with key: {api_key[:10]}...")  # Log first 10 chars for debugging
+        test_result = call_gemini_api(api_key, "Say hello")
+        
+        print(f"API test result: {test_result}")  # Debug log
         
         if 'error' in test_result:
             return jsonify({'success': False, 'error': test_result['error']})
         else:
-            return jsonify({'success': True, 'message': 'API connection successful'})
+            return jsonify({'success': True, 'message': 'API connection successful', 'response': test_result})
             
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        print(f"Exception in test_gemini: {str(e)}")  # Debug log
+        return jsonify({'success': False, 'error': f'Server error: {str(e)}'})
 
 @app.route('/save_gemini_key', methods=['POST'])
 def save_gemini_key():
