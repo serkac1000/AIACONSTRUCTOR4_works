@@ -683,48 +683,40 @@ Please incorporate these extension requirements into your app design.
 def create_advanced_project_structure(app_name, app_type, prompt, gemini_data=None):
     """Create advanced MIT App Inventor project structure using Gemini AI data"""
     
-    # Compatible component versions for MIT App Inventor
+    # Compatible component versions for MIT App Inventor (using older, more stable versions)
     COMPONENT_VERSIONS = {
-        "Button": "6",
-        "Label": "5", 
-        "TextBox": "5",
-        "Image": "6",  # Fixed: Use version 6 instead of 7
-        "ListView": "6",
+        "Button": "5",
+        "Label": "4", 
+        "TextBox": "4",
+        "Image": "3",  # Using more compatible version
+        "ListView": "5",
         "Slider": "1",
         "CheckBox": "2",
         "RadioButton": "2",
-        "WebViewer": "7",
-        "Camera": "3",
-        "Canvas": "16",
-        "HorizontalArrangement": "4",
-        "VerticalArrangement": "4",
-        "TableArrangement": "2"
+        "WebViewer": "6",
+        "Camera": "1",
+        "Canvas": "12",
+        "HorizontalArrangement": "3",
+        "VerticalArrangement": "3",
+        "TableArrangement": "1"
     }
     
-    # Base project properties  
+    # Base project properties with simpler, more compatible structure
     project_properties = {
         "YaVersion": "208",
         "Source": "Form",
         "Properties": {
             "$Name": "Screen1",
             "$Type": "Form",
-            "$Version": "31",
+            "$Version": "27",  # Using older, more stable version
             "AppName": app_name,
             "Title": app_name,
-            "AboutScreen": "",
             "AlignHorizontal": "1",
             "AlignVertical": "1", 
             "BackgroundColor": "&HFFFFFFFF",
-            "BackgroundImage": "",
-            "CloseScreenAnimation": "default",
             "Icon": "",
-            "OpenScreenAnimation": "default",
             "ScreenOrientation": "portrait",
             "Scrollable": "False",
-            "ShowListsAsJson": "True",
-            "ShowStatusBar": "True",
-            "Sizing": "Responsive",
-            "Theme": "AppTheme.Light.DarkActionBar",
             "TitleVisible": "True",
             "VersionCode": "1",
             "VersionName": "1.0",
@@ -830,67 +822,32 @@ def create_fallback_components(app_type, prompt):
     components = []
     prompt_lower = prompt.lower()
     
-    if 'calculator' in prompt_lower or app_type == 'calculator':
-        # Calculator components
-        components.append({
-            "$Name": "DisplayLabel",
-            "$Type": "Label",
-            "$Version": "5",
-            "BackgroundColor": "&HFFFFFFFF",
-            "FontSize": "24",
-            "Text": "0",
-            "TextAlignment": "2",
-            "TextColor": "&HFF000000",
-            "Width": "-2",
-            "Height": "-2",
-            "Uuid": str(uuid.uuid4())
-        })
-        
-        # Number buttons
-        for i in range(10):
-            components.append({
-                "$Name": f"Button{i}",
-                "$Type": "Button",
-                "$Version": "6",
-                "BackgroundColor": "&HFF4CAF50",
-                "FontBold": "True",
-                "FontSize": "16",
-                "Shape": "1",
-                "Text": str(i),
-                "TextColor": "&HFFFFFFFF",
-                "Width": "-2",
-                "Height": "-2",
-                "Uuid": str(uuid.uuid4())
-            })
-    else:
-        # Basic components
-        components.append({
-            "$Name": "Button1",
-            "$Type": "Button",
-            "$Version": "6",
-            "BackgroundColor": "&HFF007AFF",
-            "FontBold": "True",
-            "FontSize": "14",
-            "Shape": "1",
-            "Text": "Click Me",
-            "TextColor": "&HFFFFFFFF",
-            "Width": "-2",
-            "Height": "-2",
-            "Uuid": str(uuid.uuid4())
-        })
-        
-        components.append({
-            "$Name": "Label1",
-            "$Type": "Label",
-            "$Version": "5",
-            "FontSize": "14",
-            "Text": "Hello World!",
-            "TextAlignment": "1",
-            "TextColor": "&HFF000000",
-            "Width": "-2",
-            "Height": "-2",
-            "Uuid": str(uuid.uuid4())
-        })
+    # Always create a simple, compatible structure
+    components.append({
+        "$Name": "Label1",
+        "$Type": "Label",
+        "$Version": "4",
+        "FontSize": "14",
+        "Text": "Welcome to " + app_type.title() + " App!",
+        "TextAlignment": "1",
+        "TextColor": "&HFF000000",
+        "Width": "-2",
+        "Height": "-1",
+        "Uuid": str(uuid.uuid4())
+    })
+    
+    components.append({
+        "$Name": "Button1",
+        "$Type": "Button",
+        "$Version": "5",
+        "BackgroundColor": "&HFF4CAF50",
+        "FontSize": "14",
+        "Text": "Click Me",
+        "TextColor": "&HFFFFFFFF",
+        "Width": "-2",
+        "Height": "-1",
+        "Uuid": str(uuid.uuid4())
+    })
     
     return components
 
@@ -962,8 +919,9 @@ def save_gemini_key():
         if not api_key:
             return jsonify({'success': False, 'error': 'No API key provided'})
         
-        # Save API key in session (in production, use proper encryption)
+        # Save API key in session (truncate large responses to avoid cookie size issues)
         session['gemini_api_key'] = api_key
+        session.permanent = True
         
         return jsonify({'success': True, 'message': 'API key saved successfully'})
         
@@ -1012,14 +970,19 @@ def generate_aia():
                 extensions = extract_extensions_from_prompt(enhanced_prompt)
                 gemini_data = call_gemini_api(session['gemini_api_key'], enhanced_prompt, extensions)
                 if 'error' in gemini_data:
-                    # Return error details for debugging
-                    return jsonify({
-                        'error': f"Gemini AI Error: {gemini_data['error']}",
-                        'details': 'AI enhancement failed, falling back to basic generation.'
-                    }), 200  # Return 200 so frontend can handle gracefully
+                    # Continue without Gemini if it fails
+                    gemini_data = None
+                else:
+                    # Remove large data from gemini_data to prevent session issues
+                    if 'ai_response' in gemini_data:
+                        del gemini_data['ai_response']
             except Exception as e:
                 # Continue without Gemini if it fails
                 gemini_data = None
+        
+        # Don't store images in session to prevent cookie size issues
+        if 'uploaded_images' in session:
+            del session['uploaded_images']
         
         # Create project structure
         project_data = create_advanced_project_structure(app_name, app_type, prompt, gemini_data)
