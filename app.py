@@ -503,10 +503,10 @@ actionbar=false"""
             screen_scm = f'#|\n$JSON\n{project_json}\n|#'
             aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.scm', screen_scm)
 
-            # Add proper blocks file - simpler format that MIT AI2 expects
-            blocks_bky = f'''#|
+            # Add proper blocks file with empty blocks workspace
+            blocks_bky = '''#|
 $JSON
-{{"YaVersion":"208","Source":"Form","Properties":{{"$Name":"Screen1","$Type":"Form","$Version":"25","Uuid":"{str(uuid.uuid4())}"}}}}
+{"YaVersion":"208","Source":"Blocks","Properties":{"$Name":"Screen1","$Type":"Form","$Version":"1","Blocks":[],"Uuid":"''' + str(uuid.uuid4()) + '''"}}
 |#'''
             aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.bky', blocks_bky)
 
