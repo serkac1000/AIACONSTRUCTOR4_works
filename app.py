@@ -484,7 +484,7 @@ def generate_aia():
         aia_buffer = io.BytesIO()
 
         with zipfile.ZipFile(aia_buffer, 'w', zipfile.ZIP_DEFLATED) as aia_file:
-            # Add project.properties
+            # Add project.properties with correct format
             project_properties = f"""main=appinventor.ai_user.{clean_app_name}.Screen1
 name={clean_app_name}
 assets=../assets
@@ -494,27 +494,32 @@ versioncode=1
 versionname=1.0
 useslocation=false
 aname={app_name}
-sizing=Responsive"""
+sizing=Responsive
+actionbar=false"""
             aia_file.writestr('youngandroidproject/project.properties', project_properties)
 
-            # Add Screen1.scm
+            # Add Screen1.scm with proper format
             project_json = json.dumps(project_data, indent=2)
             screen_scm = f'#|\n$JSON\n{project_json}\n|#'
             aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.scm', screen_scm)
 
-            # Add Screen1.bky (blocks file)
-            blocks_xml = '''<xml xmlns="http://www.w3.org/1999/xhtml">
-  <block type="component_event" id="1" x="50" y="50">
-    <field name="component_object_name">Screen1</field>
-    <field name="component_event_name">Initialize</field>
-  </block>
-</xml>'''
-            aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.bky', blocks_xml)
+            # Add proper blocks file - simpler format that MIT AI2 expects
+            blocks_bky = f'''#|
+$JSON
+{{"YaVersion":"208","Source":"Form","Properties":{{"$Name":"Screen1","$Type":"Form","$Version":"25","Uuid":"{str(uuid.uuid4())}"}}}}
+|#'''
+            aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.bky', blocks_bky)
 
-            # Add required directories and files
-            aia_file.writestr('assets/.gitkeep', '')
-            aia_file.writestr('build/.gitkeep', '')
-            aia_file.writestr('META-INF/MANIFEST.MF', 'Manifest-Version: 1.0\nCreated-By: AIA Generator\n')
+            # Add required empty directories
+            aia_file.writestr('assets/', '')
+            aia_file.writestr('build/', '')
+            
+            # Add proper manifest
+            manifest = """Manifest-Version: 1.0
+Created-By: MIT App Inventor
+
+"""
+            aia_file.writestr('META-INF/MANIFEST.MF', manifest)
 
         aia_buffer.seek(0)
 
