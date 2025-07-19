@@ -1,4 +1,3 @@
-
 from flask import Flask, render_template, request, jsonify, send_file
 import json
 import zipfile
@@ -257,6 +256,182 @@ HTML_TEMPLATE = '''
 </html>
 '''
 
+def create_blocks_for_app_type(app_type, components):
+    """Create proper blocks structure with actual functionality for the app"""
+    blocks = []
+    
+    if app_type == "counter":
+        # Variable for counter
+        counter_var_block = {
+            "type": "global_declaration",
+            "id": str(uuid.uuid4()),
+            "x": 20,
+            "y": 20,
+            "fields": {
+                "NAME": "counter"
+            },
+            "inputs": {
+                "VALUE": {
+                    "block": {
+                        "type": "math_number",
+                        "id": str(uuid.uuid4()),
+                        "fields": {
+                            "NUM": "0"
+                        }
+                    }
+                }
+            }
+        }
+        blocks.append(counter_var_block)
+        
+        # Increment button click
+        increment_click = {
+            "type": "component_event",
+            "id": str(uuid.uuid4()),
+            "x": 20,
+            "y": 100,
+            "fields": {
+                "component_selector": "IncrementButton",
+                "event_name": "Click"
+            },
+            "inputs": {
+                "DO": {
+                    "block": {
+                        "type": "component_set_get",
+                        "id": str(uuid.uuid4()),
+                        "fields": {
+                            "COMPONENT_SELECTOR": "CounterLabel",
+                            "PROP": "Text"
+                        },
+                        "inputs": {
+                            "VALUE": {
+                                "block": {
+                                    "type": "text_join",
+                                    "id": str(uuid.uuid4()),
+                                    "inputs": {
+                                        "ADD0": {
+                                            "block": {
+                                                "type": "variables_set",
+                                                "id": str(uuid.uuid4()),
+                                                "fields": {
+                                                    "VAR": "counter"
+                                                },
+                                                "inputs": {
+                                                    "VALUE": {
+                                                        "block": {
+                                                            "type": "math_arithmetic",
+                                                            "id": str(uuid.uuid4()),
+                                                            "fields": {
+                                                                "OP": "ADD"
+                                                            },
+                                                            "inputs": {
+                                                                "A": {
+                                                                    "block": {
+                                                                        "type": "variables_get",
+                                                                        "id": str(uuid.uuid4()),
+                                                                        "fields": {
+                                                                            "VAR": "counter"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "B": {
+                                                                    "block": {
+                                                                        "type": "math_number",
+                                                                        "id": str(uuid.uuid4()),
+                                                                        "fields": {
+                                                                            "NUM": "1"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        blocks.append(increment_click)
+        
+    elif app_type == "clicker":
+        # Score variable
+        score_var_block = {
+            "type": "global_declaration",
+            "id": str(uuid.uuid4()),
+            "x": 20,
+            "y": 20,
+            "fields": {
+                "NAME": "score"
+            },
+            "inputs": {
+                "VALUE": {
+                    "block": {
+                        "type": "math_number",
+                        "id": str(uuid.uuid4()),
+                        "fields": {
+                            "NUM": "0"
+                        }
+                    }
+                }
+            }
+        }
+        blocks.append(score_var_block)
+        
+    elif app_type == "basic":
+        # Simple button click event
+        button_click = {
+            "type": "component_event",
+            "id": str(uuid.uuid4()),
+            "x": 20,
+            "y": 20,
+            "fields": {
+                "component_selector": "ActionButton",
+                "event_name": "Click"
+            },
+            "inputs": {
+                "DO": {
+                    "block": {
+                        "type": "component_set_get",
+                        "id": str(uuid.uuid4()),
+                        "fields": {
+                            "COMPONENT_SELECTOR": "StatusLabel",
+                            "PROP": "Text"
+                        },
+                        "inputs": {
+                            "VALUE": {
+                                "block": {
+                                    "type": "text",
+                                    "id": str(uuid.uuid4()),
+                                    "fields": {
+                                        "TEXT": "Button was clicked!"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        blocks.append(button_click)
+    
+    return {
+        "YaVersion": "208",
+        "Source": "Blocks",
+        "Properties": {
+            "$Name": "Screen1",
+            "$Type": "Form",
+            "$Version": "29",
+            "Uuid": str(uuid.uuid4()),
+            "Blocks": blocks
+        }
+    }
+
 def create_project_structure(app_name, app_type, prompt):
     """Create MIT App Inventor compatible project structure"""
     
@@ -264,184 +439,270 @@ def create_project_structure(app_name, app_type, prompt):
     
     # Create components based on app type
     if app_type == "calculator":
-        # Display label
-        components.append({
-            "$Name": "DisplayLabel",
-            "$Type": "Label",
-            "$Version": "4",
-            "FontSize": "24",
-            "Text": "0",
-            "TextAlignment": "2",
-            "BackgroundColor": "&HFFF5F5F5",
-            "Width": "-2",
-            "Height": "80",
-            "Uuid": str(uuid.uuid4())
-        })
-        
-        # Number buttons 0-9
-        for i in range(10):
-            components.append({
-                "$Name": f"Button{i}",
-                "$Type": "Button",
-                "$Version": "5",
-                "Text": str(i),
-                "FontSize": "18",
-                "Width": "80",
-                "Height": "60",
-                "Uuid": str(uuid.uuid4())
-            })
-            
-        # Operation buttons
-        for op, name in [("+", "Plus"), ("-", "Minus"), ("*", "Multiply"), ("/", "Divide"), ("=", "Equals")]:
-            components.append({
-                "$Name": f"Button{name}",
-                "$Type": "Button",
-                "$Version": "5",
-                "Text": op,
-                "FontSize": "18",
-                "Width": "80",
-                "Height": "60",
-                "BackgroundColor": "&HFFFFA500",
-                "Uuid": str(uuid.uuid4())
-            })
-            
-    elif app_type == "counter":
-        # Counter display
-        components.append({
-            "$Name": "CounterLabel",
-            "$Type": "Label",
-            "$Version": "4",
-            "FontSize": "36",
-            "Text": "0",
-            "TextAlignment": "1",
+        # Vertical arrangement for display
+        display_arrangement = {
+            "$Name": "DisplayArrangement",
+            "$Type": "VerticalArrangement",
+            "$Version": "3",
+            "AlignHorizontal": "3",
             "Width": "-2",
             "Height": "100",
-            "BackgroundColor": "&HFFF0F0F0",
-            "Uuid": str(uuid.uuid4())
-        })
+            "Uuid": str(uuid.uuid4()),
+            "$Components": [
+                {
+                    "$Name": "DisplayLabel",
+                    "$Type": "Label",
+                    "$Version": "5",
+                    "FontSize": "24",
+                    "Text": "0",
+                    "TextAlignment": "2",
+                    "BackgroundColor": "&HFFF5F5F5",
+                    "Width": "-2",
+                    "Height": "-2",
+                    "Uuid": str(uuid.uuid4())
+                }
+            ]
+        }
+        components.append(display_arrangement)
         
-        # Increment button
-        components.append({
-            "$Name": "IncrementButton",
-            "$Type": "Button",
-            "$Version": "5",
-            "Text": "+1",
-            "FontSize": "20",
-            "BackgroundColor": "&HFF4CAF50",
-            "TextColor": "&HFFFFFFFF",
-            "Width": "120",
-            "Height": "60",
-            "Uuid": str(uuid.uuid4())
-        })
+        # Horizontal arrangement for buttons
+        button_arrangement = {
+            "$Name": "ButtonArrangement",
+            "$Type": "TableArrangement",
+            "$Version": "2",
+            "Columns": "4",
+            "Rows": "4",
+            "Width": "-2",
+            "Height": "300",
+            "Uuid": str(uuid.uuid4()),
+            "$Components": []
+        }
         
-        # Decrement button
-        components.append({
-            "$Name": "DecrementButton",
-            "$Type": "Button",
-            "$Version": "5",
-            "Text": "-1",
-            "FontSize": "20",
-            "BackgroundColor": "&HFFF44336",
-            "TextColor": "&HFFFFFFFF",
-            "Width": "120",
-            "Height": "60",
-            "Uuid": str(uuid.uuid4())
-        })
+        # Number buttons and operations
+        buttons = [
+            ("7", "Button7"), ("8", "Button8"), ("9", "Button9"), ("/", "ButtonDivide"),
+            ("4", "Button4"), ("5", "Button5"), ("6", "Button6"), ("*", "ButtonMultiply"),
+            ("1", "Button1"), ("2", "Button2"), ("3", "Button3"), ("-", "ButtonMinus"),
+            ("0", "Button0"), ("C", "ButtonClear"), ("=", "ButtonEquals"), ("+", "ButtonPlus")
+        ]
         
-        # Reset button
-        components.append({
-            "$Name": "ResetButton",
-            "$Type": "Button",
-            "$Version": "5",
-            "Text": "Reset",
-            "FontSize": "16",
-            "BackgroundColor": "&HFF9E9E9E",
-            "Width": "120",
-            "Height": "50",
-            "Uuid": str(uuid.uuid4())
-        })
+        for text, name in buttons:
+            btn = {
+                "$Name": name,
+                "$Type": "Button",
+                "$Version": "6",
+                "Text": text,
+                "FontSize": "18",
+                "Width": "80",
+                "Height": "60",
+                "Uuid": str(uuid.uuid4())
+            }
+            if text in ["+", "-", "*", "/", "="]:
+                btn["BackgroundColor"] = "&HFFFFA500"
+            button_arrangement["$Components"].append(btn)
+            
+        components.append(button_arrangement)
+        
+    elif app_type == "counter":
+        # Main arrangement
+        main_arrangement = {
+            "$Name": "MainArrangement",
+            "$Type": "VerticalArrangement",
+            "$Version": "3",
+            "AlignHorizontal": "3",
+            "AlignVertical": "2",
+            "Width": "-2",
+            "Height": "-2",
+            "Uuid": str(uuid.uuid4()),
+            "$Components": [
+                {
+                    "$Name": "TitleLabel",
+                    "$Type": "Label",
+                    "$Version": "5",
+                    "FontSize": "24",
+                    "Text": "Counter App",
+                    "TextAlignment": "1",
+                    "Width": "-2",
+                    "Height": "60",
+                    "Uuid": str(uuid.uuid4())
+                },
+                {
+                    "$Name": "CounterLabel",
+                    "$Type": "Label",
+                    "$Version": "5",
+                    "FontSize": "48",
+                    "Text": "0",
+                    "TextAlignment": "1",
+                    "Width": "-2",
+                    "Height": "120",
+                    "BackgroundColor": "&HFFF0F0F0",
+                    "Uuid": str(uuid.uuid4())
+                },
+                {
+                    "$Name": "ButtonArrangement",
+                    "$Type": "HorizontalArrangement",
+                    "$Version": "3",
+                    "AlignHorizontal": "3",
+                    "Width": "-2",
+                    "Height": "80",
+                    "Uuid": str(uuid.uuid4()),
+                    "$Components": [
+                        {
+                            "$Name": "DecrementButton",
+                            "$Type": "Button",
+                            "$Version": "6",
+                            "Text": "-",
+                            "FontSize": "24",
+                            "BackgroundColor": "&HFFF44336",
+                            "TextColor": "&HFFFFFFFF",
+                            "Width": "80",
+                            "Height": "80",
+                            "Uuid": str(uuid.uuid4())
+                        },
+                        {
+                            "$Name": "IncrementButton",
+                            "$Type": "Button",
+                            "$Version": "6",
+                            "Text": "+",
+                            "FontSize": "24",
+                            "BackgroundColor": "&HFF4CAF50",
+                            "TextColor": "&HFFFFFFFF",
+                            "Width": "80",
+                            "Height": "80",
+                            "Uuid": str(uuid.uuid4())
+                        }
+                    ]
+                },
+                {
+                    "$Name": "ResetButton",
+                    "$Type": "Button",
+                    "$Version": "6",
+                    "Text": "Reset",
+                    "FontSize": "18",
+                    "BackgroundColor": "&HFF9E9E9E",
+                    "Width": "120",
+                    "Height": "50",
+                    "Uuid": str(uuid.uuid4())
+                }
+            ]
+        }
+        components.append(main_arrangement)
         
     elif app_type == "clicker":
-        # Score display
-        components.append({
-            "$Name": "ScoreLabel",
-            "$Type": "Label",
-            "$Version": "4",
-            "FontSize": "24",
-            "Text": "Score: 0",
-            "TextAlignment": "1",
+        # Main vertical arrangement
+        main_arrangement = {
+            "$Name": "MainArrangement",
+            "$Type": "VerticalArrangement",
+            "$Version": "3",
+            "AlignHorizontal": "3",
+            "AlignVertical": "2",
             "Width": "-2",
-            "Height": "60",
-            "Uuid": str(uuid.uuid4())
-        })
-        
-        # Click button
-        components.append({
-            "$Name": "ClickButton",
-            "$Type": "Button",
-            "$Version": "5",
-            "Text": "Click Me!",
-            "FontSize": "20",
-            "BackgroundColor": "&HFF2196F3",
-            "TextColor": "&HFFFFFFFF",
-            "Width": "200",
-            "Height": "100",
-            "Uuid": str(uuid.uuid4())
-        })
+            "Height": "-2",
+            "Uuid": str(uuid.uuid4()),
+            "$Components": [
+                {
+                    "$Name": "ScoreLabel",
+                    "$Type": "Label",
+                    "$Version": "5",
+                    "FontSize": "32",
+                    "Text": "Score: 0",
+                    "TextAlignment": "1",
+                    "Width": "-2",
+                    "Height": "80",
+                    "BackgroundColor": "&HFFE3F2FD",
+                    "Uuid": str(uuid.uuid4())
+                },
+                {
+                    "$Name": "ClickButton",
+                    "$Type": "Button",
+                    "$Version": "6",
+                    "Text": "🎯 CLICK ME! 🎯",
+                    "FontSize": "20",
+                    "BackgroundColor": "&HFF2196F3",
+                    "TextColor": "&HFFFFFFFF",
+                    "Width": "250",
+                    "Height": "150",
+                    "Uuid": str(uuid.uuid4())
+                },
+                {
+                    "$Name": "ResetButton",
+                    "$Type": "Button",
+                    "$Version": "6",
+                    "Text": "Reset Score",
+                    "FontSize": "16",
+                    "BackgroundColor": "&HFFFF9800",
+                    "TextColor": "&HFFFFFFFF",
+                    "Width": "150",
+                    "Height": "60",
+                    "Uuid": str(uuid.uuid4())
+                }
+            ]
+        }
+        components.append(main_arrangement)
         
     else:  # basic app
-        # Welcome label
-        components.append({
-            "$Name": "WelcomeLabel",
-            "$Type": "Label",
-            "$Version": "4",
-            "FontSize": "20",
-            "Text": f"Welcome to {app_name}!",
-            "TextAlignment": "1",
+        # Main vertical arrangement
+        main_arrangement = {
+            "$Name": "MainArrangement",
+            "$Type": "VerticalArrangement",
+            "$Version": "3",
+            "AlignHorizontal": "3",
+            "AlignVertical": "2",
             "Width": "-2",
-            "Height": "80",
-            "Uuid": str(uuid.uuid4())
-        })
-        
-        # Action button
-        components.append({
-            "$Name": "ActionButton",
-            "$Type": "Button",
-            "$Version": "5",
-            "Text": "Click Me",
-            "FontSize": "18",
-            "BackgroundColor": "&HFF4CAF50",
-            "TextColor": "&HFFFFFFFF",
-            "Width": "-2",
-            "Height": "60",
-            "Uuid": str(uuid.uuid4())
-        })
-        
-        # Status label
-        components.append({
-            "$Name": "StatusLabel",
-            "$Type": "Label",
-            "$Version": "4",
-            "FontSize": "16",
-            "Text": "Ready",
-            "TextAlignment": "1",
-            "Width": "-2",
-            "Height": "40",
-            "BackgroundColor": "&HFFF5F5F5",
-            "Uuid": str(uuid.uuid4())
-        })
+            "Height": "-2",
+            "Uuid": str(uuid.uuid4()),
+            "$Components": [
+                {
+                    "$Name": "WelcomeLabel",
+                    "$Type": "Label",
+                    "$Version": "5",
+                    "FontSize": "24",
+                    "Text": f"Welcome to {app_name}!",
+                    "TextAlignment": "1",
+                    "Width": "-2",
+                    "Height": "100",
+                    "BackgroundColor": "&HFFE8F5E9",
+                    "Uuid": str(uuid.uuid4())
+                },
+                {
+                    "$Name": "ActionButton",
+                    "$Type": "Button",
+                    "$Version": "6",
+                    "Text": "Click Me!",
+                    "FontSize": "20",
+                    "BackgroundColor": "&HFF4CAF50",
+                    "TextColor": "&HFFFFFFFF",
+                    "Width": "200",
+                    "Height": "80",
+                    "Uuid": str(uuid.uuid4())
+                },
+                {
+                    "$Name": "StatusLabel",
+                    "$Type": "Label",
+                    "$Version": "5",
+                    "FontSize": "18",
+                    "Text": "Ready to interact!",
+                    "TextAlignment": "1",
+                    "Width": "-2",
+                    "Height": "60",
+                    "BackgroundColor": "&HFFF3E5F5",
+                    "Uuid": str(uuid.uuid4())
+                }
+            ]
+        }
+        components.append(main_arrangement)
 
-    # Create the main project structure
+    # Create the main project structure - this is the key format for MIT App Inventor
     project_data = {
         "YaVersion": "208",
         "Source": "Form",
         "Properties": {
             "$Name": "Screen1",
             "$Type": "Form",
-            "$Version": "25",
+            "$Version": "29",
             "AppName": app_name,
             "Title": app_name,
-            "AlignHorizontal": "1",
+            "AlignHorizontal": "3",
             "AlignVertical": "1",
             "BackgroundColor": "&HFFFFFFFF",
             "ScreenOrientation": "portrait",
@@ -472,19 +733,29 @@ def generate_aia():
         if not app_name:
             return jsonify({'error': 'App name is required'}), 400
 
-        # Clean app name for file system
-        clean_app_name = ''.join(c for c in app_name if c.isalnum())
-        if not clean_app_name:
+        # Clean app name for file system - only alphanumeric and underscore
+        clean_app_name = ''.join(c if c.isalnum() else '_' for c in app_name)
+        if not clean_app_name or clean_app_name.replace('_', '') == '':
             clean_app_name = 'MyApp'
 
         # Create project structure
         project_data = create_project_structure(app_name, app_type, prompt)
+        blocks_data = create_blocks_for_app_type(app_type, project_data["Properties"]["$Components"])
 
         # Create AIA file
         aia_buffer = io.BytesIO()
 
         with zipfile.ZipFile(aia_buffer, 'w', zipfile.ZIP_DEFLATED) as aia_file:
-            # Add project.properties with correct format
+            # Create the proper directory structure first
+            
+            # 1. META-INF/MANIFEST.MF - Required manifest file
+            manifest_content = """Manifest-Version: 1.0
+Created-By: MIT App Inventor
+
+"""
+            aia_file.writestr('META-INF/MANIFEST.MF', manifest_content)
+            
+            # 2. youngandroidproject/project.properties - Main project config
             project_properties = f"""main=appinventor.ai_user.{clean_app_name}.Screen1
 name={clean_app_name}
 assets=../assets
@@ -492,34 +763,31 @@ source=../src
 build=../build
 versioncode=1
 versionname=1.0
-useslocation=false
+useslocation=False
 aname={app_name}
 sizing=Responsive
-actionbar=false"""
+showlistsasjson=True
+actionbar=False
+theme=AppTheme.Light.DarkActionBar
+color.primary=&HFF3F51B5
+color.primary.dark=&HFF303F9F
+color.accent=&HFFFF4081
+color.primary.light=&HFFC5CAE9"""
             aia_file.writestr('youngandroidproject/project.properties', project_properties)
 
-            # Add Screen1.scm with proper format
-            project_json = json.dumps(project_data, indent=2)
-            screen_scm = f'#|\n$JSON\n{project_json}\n|#'
-            aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.scm', screen_scm)
+            # 3. Screen1.scm - The screen definition (this is critical!)
+            screen_json = json.dumps(project_data, indent=2, separators=(',', ': '))
+            screen_scm_content = f'#|\n$JSON\n{screen_json}\n|#'
+            aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.scm', screen_scm_content)
 
-            # Add proper blocks file with empty blocks workspace
-            blocks_bky = '''#|
-$JSON
-{"YaVersion":"208","Source":"Blocks","Properties":{"$Name":"Screen1","$Type":"Form","$Version":"1","Blocks":[],"Uuid":"''' + str(uuid.uuid4()) + '''"}}
-|#'''
-            aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.bky', blocks_bky)
+            # 4. Screen1.bky - The blocks definition (this is where the issue was!)
+            blocks_json = json.dumps(blocks_data, indent=2, separators=(',', ': '))
+            blocks_bky_content = f'#|\n$JSON\n{blocks_json}\n|#'
+            aia_file.writestr(f'src/appinventor/ai_user/{clean_app_name}/Screen1.bky', blocks_bky_content)
 
-            # Add required empty directories
-            aia_file.writestr('assets/', '')
-            aia_file.writestr('build/', '')
-            
-            # Add proper manifest
-            manifest = """Manifest-Version: 1.0
-Created-By: MIT App Inventor
-
-"""
-            aia_file.writestr('META-INF/MANIFEST.MF', manifest)
+            # 5. Create empty directories (these are required)
+            aia_file.writestr('assets/.gitkeep', '')
+            aia_file.writestr('build/.gitkeep', '')
 
         aia_buffer.seek(0)
 
@@ -532,6 +800,8 @@ Created-By: MIT App Inventor
 
     except Exception as e:
         print(f"Error generating AIA: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Generation failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
