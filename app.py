@@ -384,28 +384,6 @@ def call_gemini_api(api_key, prompt):
 def create_simple_project_structure(app_name, app_type, prompt):
     """Create simple, compatible MIT App Inventor project structure"""
 
-    # Use very basic, stable component versions
-    project_properties = {
-        "YaVersion": "208",
-        "Source": "Form",
-        "Properties": {
-            "$Name": "Screen1",
-            "$Type": "Form",
-            "$Version": "25",
-            "AppName": app_name,
-            "Title": app_name,
-            "AlignHorizontal": "1",
-            "AlignVertical": "1",
-            "BackgroundColor": "&HFFFFFFFF",
-            "ScreenOrientation": "portrait",
-            "Scrollable": "False",
-            "TitleVisible": "True",
-            "VersionCode": "1",
-            "VersionName": "1.0",
-            "Uuid": str(uuid.uuid4())
-        }
-    }
-
     # Create simple components based on app type
     components = []
 
@@ -463,8 +441,28 @@ def create_simple_project_structure(app_name, app_type, prompt):
             "Uuid": str(uuid.uuid4())
         })
 
-    if components:
-        project_properties["Properties"]["$Components"] = components
+    # Use very basic, stable component versions
+    project_properties = {
+        "YaVersion": "208",
+        "Source": "Form",
+        "Properties": {
+            "$Name": "Screen1",
+            "$Type": "Form",
+            "$Version": "25",
+            "AppName": app_name,
+            "Title": app_name,
+            "AlignHorizontal": "1",
+            "AlignVertical": "1",
+            "BackgroundColor": "&HFFFFFFFF",
+            "ScreenOrientation": "portrait",
+            "Scrollable": "False",
+            "TitleVisible": "True",
+            "VersionCode": "1",
+            "VersionName": "1.0",
+            "Uuid": str(uuid.uuid4()),
+            "$Components": components
+        }
+    }
 
     return project_properties
 
