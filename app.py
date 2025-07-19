@@ -449,6 +449,6 @@ aname={app_name}
 
 if __name__ == '__main__':
     print("🚀 Starting MIT App Inventor AIA Generator Server...")
-    print("📱 Server running at: http://127.0.0.1:5000")
+    print("📱 Server running at: http://0.0.0.0:5000")
     print("💡 Navigate to the URL above to start creating AIA files!")
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
