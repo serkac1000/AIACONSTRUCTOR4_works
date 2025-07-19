@@ -151,7 +151,7 @@ HTML_TEMPLATE = '''
 <body>
     <div class="container">
         <h1>🤖 MIT App Inventor AIA Generator</h1>
-        
+
         <div class="info-box">
             <h3>📱 How to Test Your App</h3>
             <p>1. Download the generated AIA file<br>
@@ -258,9 +258,8 @@ HTML_TEMPLATE = '''
 
 def create_blocks_for_app_type(app_type, components):
     """Create a simple, valid blocks structure for MIT App Inventor"""
-    
-    # Create minimal blocks structure that MIT App Inventor can parse
-    # We'll start with an empty blocks workspace which is always valid
+
+    # Create proper blocks structure that MIT App Inventor expects
     return {
         "YaVersion": "208",
         "Source": "Blocks",
@@ -269,15 +268,16 @@ def create_blocks_for_app_type(app_type, components):
             "$Type": "Form",
             "$Version": "29",
             "Uuid": str(uuid.uuid4()),
-            "$Components": []
+            "BlocksToolkit": "Screen1",
+            "Blocks": []
         }
     }
 
 def create_project_structure(app_name, app_type, prompt):
     """Create MIT App Inventor compatible project structure"""
-    
+
     components = []
-    
+
     # Create components based on app type
     if app_type == "calculator":
         # Vertical arrangement for display
@@ -305,7 +305,7 @@ def create_project_structure(app_name, app_type, prompt):
             ]
         }
         components.append(display_arrangement)
-        
+
         # Horizontal arrangement for buttons
         button_arrangement = {
             "$Name": "ButtonArrangement",
@@ -318,7 +318,7 @@ def create_project_structure(app_name, app_type, prompt):
             "Uuid": str(uuid.uuid4()),
             "$Components": []
         }
-        
+
         # Number buttons and operations
         buttons = [
             ("7", "Button7"), ("8", "Button8"), ("9", "Button9"), ("/", "ButtonDivide"),
@@ -326,7 +326,7 @@ def create_project_structure(app_name, app_type, prompt):
             ("1", "Button1"), ("2", "Button2"), ("3", "Button3"), ("-", "ButtonMinus"),
             ("0", "Button0"), ("C", "ButtonClear"), ("=", "ButtonEquals"), ("+", "ButtonPlus")
         ]
-        
+
         for text, name in buttons:
             btn = {
                 "$Name": name,
@@ -341,9 +341,9 @@ def create_project_structure(app_name, app_type, prompt):
             if text in ["+", "-", "*", "/", "="]:
                 btn["BackgroundColor"] = "&HFFFFA500"
             button_arrangement["$Components"].append(btn)
-            
+
         components.append(button_arrangement)
-        
+
     elif app_type == "counter":
         # Main arrangement
         main_arrangement = {
@@ -428,7 +428,7 @@ def create_project_structure(app_name, app_type, prompt):
             ]
         }
         components.append(main_arrangement)
-        
+
     elif app_type == "clicker":
         # Main vertical arrangement
         main_arrangement = {
@@ -480,7 +480,7 @@ def create_project_structure(app_name, app_type, prompt):
             ]
         }
         components.append(main_arrangement)
-        
+
     else:  # basic app
         # Main vertical arrangement
         main_arrangement = {
@@ -555,7 +555,7 @@ def create_project_structure(app_name, app_type, prompt):
             "$Components": components
         }
     }
-    
+
     return project_data
 
 @app.route('/')
@@ -588,14 +588,14 @@ def generate_aia():
 
         with zipfile.ZipFile(aia_buffer, 'w', zipfile.ZIP_DEFLATED) as aia_file:
             # Create the proper directory structure first
-            
+
             # 1. META-INF/MANIFEST.MF - Required manifest file
             manifest_content = """Manifest-Version: 1.0
 Created-By: MIT App Inventor
 
 """
             aia_file.writestr('META-INF/MANIFEST.MF', manifest_content)
-            
+
             # 2. youngandroidproject/project.properties - Main project config
             project_properties = f"""main=appinventor.ai_user.{clean_app_name}.Screen1
 name={clean_app_name}
