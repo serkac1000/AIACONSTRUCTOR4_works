@@ -190,6 +190,7 @@ HTML_TEMPLATE = '''
             </div>
             <button type="button" class="btn btn-small btn-test" onclick="testGeminiAPI()">Test API</button>
             <button type="button" class="btn btn-small" onclick="saveGeminiAPI()">Save API Key</button>
+            <button type="button" class="btn btn-small btn-test" onclick="testSavedAPI()">Test Saved API</button>
             <div id="apiStatus" class="api-status" style="display: none;"></div>
         </div>
 
@@ -293,7 +294,8 @@ HTML_TEMPLATE = '''
             }
 
             try {
-                const response = await fetch('/save_gemini_key', {
+                // First save the key
+                const saveResponse = await fetch('/save_gemini_key', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -301,13 +303,50 @@ HTML_TEMPLATE = '''
                     body: JSON.stringify({ api_key: apiKey })
                 });
                 
+                const saveResult = await saveResponse.json();
+                if (saveResult.success) {
+                    showAPIStatus('✅ API key saved! Testing connection...', 'connected');
+                    apiKeyStored = true;
+                    
+                    // Auto-test the API after saving
+                    const testResponse = await fetch('/test_gemini', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ api_key: apiKey })
+                    });
+                    
+                    const testResult = await testResponse.json();
+                    if (testResult.success) {
+                        showAPIStatus('✅ API key saved and tested successfully!', 'connected');
+                        document.getElementById('geminiApiKey').value = ''; // Clear for security
+                    } else {
+                        showAPIStatus('✅ API key saved but test failed: ' + testResult.error, 'error');
+                    }
+                } else {
+                    showAPIStatus('❌ Failed to save API key: ' + saveResult.error, 'error');
+                }
+            } catch (error) {
+                showAPIStatus('❌ Network error: ' + error.message, 'error');
+            }
+        }
+
+        // Test saved Gemini API key
+        async function testSavedAPI() {
+            try {
+                const response = await fetch('/test_saved_gemini', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
                 const result = await response.json();
                 if (result.success) {
-                    showAPIStatus('✅ API key saved successfully!', 'connected');
-                    apiKeyStored = true;
-                    document.getElementById('geminiApiKey').value = ''; // Clear for security
+                    showAPIStatus('✅ Saved API key is working!', 'connected');
                 } else {
-                    showAPIStatus('❌ Failed to save API key: ' + result.error, 'error');
+                    showAPIStatus('❌ Saved API test failed: ' + result.error, 'error');
                 }
             } catch (error) {
                 showAPIStatus('❌ Network error: ' + error.message, 'error');
@@ -456,7 +495,13 @@ def call_gemini_api(api_key, prompt):
             print(f"Response content: {json.dumps(result, indent=2)[:500]}...")  # Debug log
             
             if 'candidates' in result and len(result['candidates']) > 0:
-                content = result['candidates'][0]['parts'][0]['text']
+                candidate = result['candidates'][0]
+                if 'content' in candidate and 'parts' in candidate['content']:
+                    content = candidate['content']['parts'][0]['text']
+                elif 'parts' in candidate:
+                    content = candidate['parts'][0]['text']
+                else:
+                    return {"error": "Unexpected API response format"}
                 
                 # For test requests, just return success
                 if prompt == "Say hello":
@@ -744,6 +789,23 @@ def save_gemini_key():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/test_saved_gemini', methods=['POST'])
+def test_saved_gemini():
+    try:
+        if 'gemini_api_key' not in session:
+            return jsonify({'success': False, 'error': 'No saved API key found'})
+        
+        api_key = session['gemini_api_key']
+        test_result = call_gemini_api(api_key, "Say hello")
+        
+        if 'error' in test_result:
+            return jsonify({'success': False, 'error': test_result['error']})
+        else:
+            return jsonify({'success': True, 'message': 'Saved API key works!', 'response': test_result})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Server error: {str(e)}'})
 
 @app.route('/generate', methods=['POST'])
 def generate_aia():
