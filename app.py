@@ -257,169 +257,10 @@ HTML_TEMPLATE = '''
 '''
 
 def create_blocks_for_app_type(app_type, components):
-    """Create proper blocks structure with actual functionality for the app"""
-    blocks = []
+    """Create a simple, valid blocks structure for MIT App Inventor"""
     
-    if app_type == "counter":
-        # Variable for counter
-        counter_var_block = {
-            "type": "global_declaration",
-            "id": str(uuid.uuid4()),
-            "x": 20,
-            "y": 20,
-            "fields": {
-                "NAME": "counter"
-            },
-            "inputs": {
-                "VALUE": {
-                    "block": {
-                        "type": "math_number",
-                        "id": str(uuid.uuid4()),
-                        "fields": {
-                            "NUM": "0"
-                        }
-                    }
-                }
-            }
-        }
-        blocks.append(counter_var_block)
-        
-        # Increment button click
-        increment_click = {
-            "type": "component_event",
-            "id": str(uuid.uuid4()),
-            "x": 20,
-            "y": 100,
-            "fields": {
-                "component_selector": "IncrementButton",
-                "event_name": "Click"
-            },
-            "inputs": {
-                "DO": {
-                    "block": {
-                        "type": "component_set_get",
-                        "id": str(uuid.uuid4()),
-                        "fields": {
-                            "COMPONENT_SELECTOR": "CounterLabel",
-                            "PROP": "Text"
-                        },
-                        "inputs": {
-                            "VALUE": {
-                                "block": {
-                                    "type": "text_join",
-                                    "id": str(uuid.uuid4()),
-                                    "inputs": {
-                                        "ADD0": {
-                                            "block": {
-                                                "type": "variables_set",
-                                                "id": str(uuid.uuid4()),
-                                                "fields": {
-                                                    "VAR": "counter"
-                                                },
-                                                "inputs": {
-                                                    "VALUE": {
-                                                        "block": {
-                                                            "type": "math_arithmetic",
-                                                            "id": str(uuid.uuid4()),
-                                                            "fields": {
-                                                                "OP": "ADD"
-                                                            },
-                                                            "inputs": {
-                                                                "A": {
-                                                                    "block": {
-                                                                        "type": "variables_get",
-                                                                        "id": str(uuid.uuid4()),
-                                                                        "fields": {
-                                                                            "VAR": "counter"
-                                                                        }
-                                                                    }
-                                                                },
-                                                                "B": {
-                                                                    "block": {
-                                                                        "type": "math_number",
-                                                                        "id": str(uuid.uuid4()),
-                                                                        "fields": {
-                                                                            "NUM": "1"
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        blocks.append(increment_click)
-        
-    elif app_type == "clicker":
-        # Score variable
-        score_var_block = {
-            "type": "global_declaration",
-            "id": str(uuid.uuid4()),
-            "x": 20,
-            "y": 20,
-            "fields": {
-                "NAME": "score"
-            },
-            "inputs": {
-                "VALUE": {
-                    "block": {
-                        "type": "math_number",
-                        "id": str(uuid.uuid4()),
-                        "fields": {
-                            "NUM": "0"
-                        }
-                    }
-                }
-            }
-        }
-        blocks.append(score_var_block)
-        
-    elif app_type == "basic":
-        # Simple button click event
-        button_click = {
-            "type": "component_event",
-            "id": str(uuid.uuid4()),
-            "x": 20,
-            "y": 20,
-            "fields": {
-                "component_selector": "ActionButton",
-                "event_name": "Click"
-            },
-            "inputs": {
-                "DO": {
-                    "block": {
-                        "type": "component_set_get",
-                        "id": str(uuid.uuid4()),
-                        "fields": {
-                            "COMPONENT_SELECTOR": "StatusLabel",
-                            "PROP": "Text"
-                        },
-                        "inputs": {
-                            "VALUE": {
-                                "block": {
-                                    "type": "text",
-                                    "id": str(uuid.uuid4()),
-                                    "fields": {
-                                        "TEXT": "Button was clicked!"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        blocks.append(button_click)
-    
+    # Create minimal blocks structure that MIT App Inventor can parse
+    # We'll start with an empty blocks workspace which is always valid
     return {
         "YaVersion": "208",
         "Source": "Blocks",
@@ -428,7 +269,7 @@ def create_blocks_for_app_type(app_type, components):
             "$Type": "Form",
             "$Version": "29",
             "Uuid": str(uuid.uuid4()),
-            "Blocks": blocks
+            "$Components": []
         }
     }
 
