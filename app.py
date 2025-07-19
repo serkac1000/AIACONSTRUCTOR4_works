@@ -383,7 +383,7 @@ HTML_TEMPLATE = '''
 def call_gemini_api(api_key, prompt):
     """Call Gemini API to enhance app generation"""
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
         
         enhanced_prompt = f"""
         You are an expert MIT App Inventor developer. Based on the following app description, generate a detailed specification for creating an AIA file.
